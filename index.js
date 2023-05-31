@@ -79,8 +79,6 @@ client.on('messageCreate', async (message) => {
         if (isPlaying) {
             try{
                 voiceConnection.destroy();
-                queue = [];
-                isPlaying = false
                 message.channel.send("再生を停止しました");
             }
             catch(err){
@@ -105,7 +103,9 @@ client.on('messageCreate', async (message) => {
             .addFields(
                 { name: "コマンド", value: "説明" },
                 { name: "!play", value: "音楽を再生するためのコマンドです" },
-                { name: "!queue", value: "現在の再生待機リストを確認できます" }
+                { name: "!queue", value: "現在の再生待機リストを確認できます" },
+                { name: "!stop", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
+                { name: "!skip", value: "キューが入っていた場合次の曲を再生します" }
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
@@ -180,14 +180,15 @@ async function play(message) {
             }
         }
     });
-    client.on('voiceStateUpdate', (oldState, newState) => {
+    const handleVoiceStateUpdate = (oldState, newState) => {
         if (oldState.member.id === client.user.id && oldState.channel && !newState.channel) {
             voiceConnection.disconnect();
             isPlaying = false;
             queue = [];
-            message.channel.send("何か知らんけど落とされました")
+            client.off('voiceStateUpdate', handleVoiceStateUpdate);
         }
-    });
+    };
+    client.on('voiceStateUpdate', handleVoiceStateUpdate);
 }
 
 function formatDuration(duration) {
