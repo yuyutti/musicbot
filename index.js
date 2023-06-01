@@ -12,6 +12,7 @@ const YouTube_API_Key = process.env.YouTube_API_KEY
 
 let queue = [];
 let isPlaying = false;
+let voiceConnection;
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -29,9 +30,12 @@ client.on('messageCreate', async (message) => {
             key: YouTube_API_Key,
             type: 'video'
         };
-
         if (arg.startsWith('https')) {
-            queue_List(arg,message)
+            if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
+                queue_List(arg,message)
+                return;
+            }
+            message.channel.send("指定されたURLには対応していません")
         }
         else {
             youtubeSearch(arg, searchOptions, async (err, results) => {
@@ -121,8 +125,6 @@ async function queue_List(url,message) {
         play(message);
     }
 }
-
-let voiceConnection;
 
 async function play(message) {
     if (queue.length === 0) {
