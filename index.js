@@ -10,9 +10,8 @@ const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
 const YouTube_API_Key = process.env.YouTube_API_KEY
 
-let queue = [];
-let isPlaying = false;
-let voiceConnection;
+let queues = {};
+const voiceConnections = {};
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -21,7 +20,7 @@ client.on('ready', () => {
 client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
-
+    const guildId = message.guild.id;
     if (command === 'play') {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
 
@@ -56,38 +55,46 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "queue") {
-        if (queue.length === 0) {
+        const guildQueue = queues[guildId];
+        if (!guildQueue || guildQueue.length === 0) {
             const queueEmbed = new MessageEmbed()
                 .setTitle('キュー')
                 .setDescription('現在キューに曲はありません')
                 .setColor('RED');
             message.channel.send({ embeds: [queueEmbed] });
-        }
-        else {
+        } else {
             const queueEmbed = new MessageEmbed()
                 .setTitle('キュー')
                 .setDescription('現在のキューには以下の曲が入っています')
                 .setColor('RED');
-            for (let i = 0; i < queue.length; i++) {
-                const url = queue[i];
+                
+            let position = 1;
+            for (let i = 0; i < guildQueue.length; i++) {
+                const url = guildQueue[i];
                 const info = await ytdl.getInfo(url);
                 const title = info.videoDetails.title;
-                const position = i + 1;
                 queueEmbed.addFields({ name: `No.${position}`, value: `**${title}**` });
+                position++;
             }
+            
             message.channel.send({ embeds: [queueEmbed] });
-        }        
+        }
     }
 
     if (command === "stop") {
-        if (isPlaying) {
-            try{
-                voiceConnection.destroy();
-                message.channel.send("再生を停止しました");
+        const voiceGuildIds = Object.keys(voiceConnections);
+        for (const voiceGuildId of voiceGuildIds) {
+        if (voiceGuildId === guildId) {
+            try {
+            voiceConnections[guildId].disconnect();
+            delete voiceConnections[guildId];
+            delete queues[guildId];
+            message.channel.send("再生を停止しました");
             }
-            catch(err){
-                message.channel.send("現在再生中の曲はありません");
+            catch(err) {
+            message.channel.send("現在再生中の曲はありません");
             }
+        }
         }
     }
 
@@ -116,34 +123,46 @@ client.on('messageCreate', async (message) => {
     }
 });
 
-async function queue_List(url,message) {
-    queue.push(url);
-    if (isPlaying) {
-        message.channel.send('キューに追加されました');
-    }
-    else {
+async function queue_List(url, message) {
+    const guildId = message.guild.id;
+    const queue = queues[guildId] || [];
+    queues[guildId] = queue;
+    if (!isPlaying(guildId)) {
+        queue.push(url);
         play(message);
+    } else {
+        queue.push(url);
+        message.channel.send('キューに追加されました');
     }
 }
 
+function isPlaying(guildId) {
+    const queue = queues[guildId];
+    return queue && queue.length > 0;
+}
+
 async function play(message) {
-    if (queue.length === 0) {
-        isPlaying = false;
+    const guildId = message.guild.id;
+    const queue = queues[guildId];
+    if (!queue || queue.length === 0) {
+        voiceConnections[guildId].disconnect();
+        delete voiceConnections[guildId];
+        delete queues[guildId];
         return;
     }
     try {
-        voiceConnection = joinVoiceChannel({
+        voiceConnections[guildId] = joinVoiceChannel({
             channelId: message.member.voice.channel.id,
             guildId: message.guild.id,
             adapterCreator: message.guild.voiceAdapterCreator
-        });
+        });          
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
     }
-    isPlaying = true;
     const queue_Now = queue.shift()
+    queue.unshift(queue_Now);
     const player = createAudioPlayer();
-    voiceConnection.subscribe(player);
+    voiceConnections[guildId].subscribe(player);
     const stream = ytdl(ytdl.getURLVideoID(queue_Now), {
         filter: format => format.audioCodec === 'opus' && format.container === 'webm',
         quality: 'highest',
@@ -171,23 +190,26 @@ async function play(message) {
     });
     player.on('stateChange', (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            queue.shift()
             if (queue.length > 0) {
                 play(message);
-            }
-            else {
+            } else {
                 setTimeout(() => {
-                    voiceConnection.destroy();
-                    isPlaying = false;
+                    voiceConnections[guildId].disconnect();
+                    delete voiceConnections[guildId];
+                    delete queues[guildId];
                 }, 1000);
             }
         }
     });
     const handleVoiceStateUpdate = (oldState, newState) => {
         if (oldState.member.id === client.user.id && oldState.channel && !newState.channel) {
-            voiceConnection.disconnect();
-            isPlaying = false;
-            queue = [];
-            client.off('voiceStateUpdate', handleVoiceStateUpdate);
+            if (voiceConnections[guildId]) {
+                voiceConnections[guildId].disconnect();
+                delete voiceConnections[guildId];
+                delete queues[guildId];
+                client.off('voiceStateUpdate', handleVoiceStateUpdate);
+            }
         }
     };
     client.on('voiceStateUpdate', handleVoiceStateUpdate);
