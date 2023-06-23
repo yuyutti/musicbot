@@ -2,6 +2,8 @@ const { Client, Intents, MessageEmbed } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const youtubeSearch = require('youtube-search');
+const express = require('express')
+const app = express()
 require('dotenv').config();
 
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
@@ -10,8 +12,59 @@ const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
 const YouTube_API_Key = process.env.YouTube_API_KEY
 
+const searchOptions = {
+    maxResults: 1,
+    key: YouTube_API_Key,
+    type: 'video'
+};
+
 let queues = {};
 const voiceConnections = {};
+
+app.get('/queue', async (req, res) => {
+    try{
+        const queueInfo = await Promise.all(Object.keys(queues).map(async (guildId) => {
+            const guild = client.guilds.cache.get(guildId);
+            const queue = queues[guildId];
+            let queuery = {};
+            let position = 1;
+            for (let i = 0; i < queue.length; i++) {
+                const url = queue[i];
+                const info = await ytdl.getInfo(url);
+                const title = info.videoDetails.title;
+                queuery[i === 0 ? "再生中" : "No" + position] = [title, url];
+                position++;
+            }
+            
+            return {
+                id: guildId,
+                name: guild ? guild.name : "Unknown Guild",
+                queue: queuery
+            };
+        }));
+        res.send(queueInfo);
+    }
+    catch(err){
+        console.log(err)
+        res.status(500).send('Internal Server Error');
+    }
+});
+app.get('/vc', (req, res) => {
+    try{
+            const serverInfo = Object.keys(voiceConnections).map(guildId => {
+        const guild = client.guilds.cache.get(guildId);
+        return {
+            id: guildId,
+            name: guild ? guild.name : "Unknown Guild"
+        };
+    });
+    res.send(serverInfo);
+    }
+    catch(err){
+        console.log(err)
+        res.status(500).send('Internal Server Error');
+    }
+});
 
 client.on('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
@@ -23,12 +76,9 @@ client.on('messageCreate', async (message) => {
     const guildId = message.guild.id;
     if (command === 'play') {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
-
-        const searchOptions = {
-            maxResults: 1,
-            key: YouTube_API_Key,
-            type: 'video'
-        };
+        if(!arg){
+            return message.channel.send("URLまたはキーワードが入力されていません"); 
+        }
         if (arg.startsWith('https')) {
             if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
                 queue_List(arg,message)
@@ -73,7 +123,8 @@ client.on('messageCreate', async (message) => {
                 const url = guildQueue[i];
                 const info = await ytdl.getInfo(url);
                 const title = info.videoDetails.title;
-                queueEmbed.addFields({ name: `No.${position}`, value: `**${title}**` });
+                const queueField = i === 0 ? { name: "再生中", value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
+                queueEmbed.addFields(queueField);
                 position++;
             }
             
@@ -158,6 +209,8 @@ async function play(message) {
         });          
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
+        delete queues[guildId];
+        return;
     }
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
@@ -222,3 +275,4 @@ function formatDuration(duration) {
 }
 
 client.login(token);
+app.listen(3000)
