@@ -32,7 +32,7 @@ app.get('/queue', async (req, res) => {
                 const url = queue[i];
                 const info = await ytdl.getInfo(url);
                 const title = info.videoDetails.title;
-                queuery[i === 0 ? "再生中" : "No" + position] = [title, url];
+                queuery[i === 0 ? "Playing" : "No" + position] = [title, url];
                 position++;
             }
             
@@ -51,13 +51,13 @@ app.get('/queue', async (req, res) => {
 });
 app.get('/vc', (req, res) => {
     try{
-            const serverInfo = Object.keys(voiceConnections).map(guildId => {
+        const serverInfo = Object.keys(voiceConnections).map(guildId => {
         const guild = client.guilds.cache.get(guildId);
-        return {
-            id: guildId,
-            name: guild ? guild.name : "Unknown Guild"
-        };
-    });
+            return {
+                id: guildId,
+                name: guild ? guild.name : "Unknown Guild"
+            };
+        });
     res.send(serverInfo);
     }
     catch(err){
@@ -67,6 +67,7 @@ app.get('/vc', (req, res) => {
 });
 
 client.on('ready', () => {
+    updateActivity()
     console.log(`Logged in as ${client.user.tag}`);
 });
 
@@ -74,7 +75,7 @@ client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
-    if (command === 'play') {
+    if (command === 'play' || command === "p") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
             return message.channel.send("URLまたはキーワードが入力されていません"); 
@@ -104,7 +105,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (command === "queue") {
+    if (command === "queue" || command === "q") {
         const guildQueue = queues[guildId];
         if (!guildQueue || guildQueue.length === 0) {
             const queueEmbed = new MessageEmbed()
@@ -132,7 +133,7 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (command === "stop") {
+    if (command === "stop" || command === "dc") {
         const voiceGuildIds = Object.keys(voiceConnections);
         for (const voiceGuildId of voiceGuildIds) {
         if (voiceGuildId === guildId) {
@@ -150,10 +151,11 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "skip") {
-        if (queue.length > 0) {
-            play(message)
-        }
-        else {
+        const queue = queues[guildId];
+        if (queue && queue.length > 1) {
+            queue.shift()
+            play(message);
+        } else {
             message.channel.send("キューに曲が追加されていません");
         }
     }
@@ -164,9 +166,9 @@ client.on('messageCreate', async (message) => {
             .setDescription('プレフィックスは「!」です')
             .addFields(
                 { name: "コマンド", value: "説明" },
-                { name: "!play", value: "音楽を再生するためのコマンドです" },
-                { name: "!queue", value: "現在の再生待機リストを確認できます" },
-                { name: "!stop", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
+                { name: "!play,!p", value: "音楽を再生するためのコマンドです" },
+                { name: "!queue,!q", value: "現在の再生待機リストを確認できます" },
+                { name: "!stop,!dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
                 { name: "!skip", value: "キューが入っていた場合次の曲を再生します" }
             )
             .setColor('RED');
@@ -219,7 +221,7 @@ async function play(message) {
     const stream = ytdl(ytdl.getURLVideoID(queue_Now), {
         filter: format => format.audioCodec === 'opus' && format.container === 'webm',
         quality: 'highest',
-        highWaterMark: 64 * 1024 * 1024,
+        highWaterMark: 512 * 1024 * 1024,
     });
     const resource = createAudioResource(stream, {
         inputType: "webm/opus"
@@ -255,17 +257,6 @@ async function play(message) {
             }
         }
     });
-    const handleVoiceStateUpdate = (oldState, newState) => {
-        if (oldState.member.id === client.user.id && oldState.channel && !newState.channel) {
-            if (voiceConnections[guildId]) {
-                voiceConnections[guildId].disconnect();
-                delete voiceConnections[guildId];
-                delete queues[guildId];
-                client.off('voiceStateUpdate', handleVoiceStateUpdate);
-            }
-        }
-    };
-    client.on('voiceStateUpdate', handleVoiceStateUpdate);
 }
 
 function formatDuration(duration) {
@@ -274,5 +265,13 @@ function formatDuration(duration) {
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
 }
 
+const updateActivity = () => {
+    const serverCount = client.guilds.cache.size;
+    const voiceCount = Object.keys(voiceConnections).length;
+    client.user.setActivity(`!help | ${voiceCount}VC ${serverCount} Servers`)
+}
+client.on('voiceStateUpdate', () => {updateActivity()});
+client.on('guildCreate', () => {updateActivity()});
+client.on('guildDelete', () => {updateActivity()});
 client.login(token);
 app.listen(3000)
