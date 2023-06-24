@@ -274,4 +274,4 @@ client.on('voiceStateUpdate', () => {updateActivity()});
 client.on('guildCreate', () => {updateActivity()});
 client.on('guildDelete', () => {updateActivity()});
 client.login(token);
-app.listen(3000)
+app.listen(3010)
