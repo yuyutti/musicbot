@@ -124,7 +124,6 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 queue_List(queueItem, message);
-                                return message.channel.send(`最初の曲をキューに追加しました。`);
                             }
                         })
                         .catch(console.error);
@@ -133,7 +132,7 @@ client.on('messageCreate', async (message) => {
                 }
                 const info = await ytdl.getInfo(arg);
                 const title = info.videoDetails.title;
-                const queueItem = { url: url, title: title }
+                const queueItem = { url: arg, title: title }
                 queue_List(queueItem,message)
                 return;
             }
@@ -211,6 +210,10 @@ client.on('messageCreate', async (message) => {
 
     if (command === "skip") {
         const queue = queues[guildId];
+        if(loopStatus[guildId]){
+            message.channel.send("リピート再生が有効状態のためスキップは利用できません");
+            return;
+        }
         if (queue && queue.length > 1) {
             queue.shift()
             play(message);
@@ -287,7 +290,6 @@ async function play(message) {
         return;
     }
     if(loopStatus[guildId]){
-        return;
     }
     else{
         loopStatus[guildId] = false
@@ -304,7 +306,7 @@ async function play(message) {
     const resource = createAudioResource(stream, {
         inputType: "webm/opus"
     });
-    player.play(resource);
+    await player.play(resource);
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {
             try {
