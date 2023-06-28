@@ -1,7 +1,8 @@
-const { Client, Intents, MessageEmbed } = require('discord.js');
+const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const youtubeSearch = require('youtube-search');
+const { playlist } = require('./playlistAPI');
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -19,6 +20,7 @@ const searchOptions = {
 };
 
 let queues = {};
+let loopStatus = {};
 const voiceConnections = {};
 
 app.get('/queue', async (req, res) => {
@@ -29,16 +31,15 @@ app.get('/queue', async (req, res) => {
             let queuery = {};
             let position = 1;
             for (let i = 0; i < queue.length; i++) {
-                const url = queue[i];
-                const info = await ytdl.getInfo(url);
-                const title = info.videoDetails.title;
+                const url = queue[i].url;
+                const title = queue[i].title;
                 queuery[i === 0 ? "Playing" : "No" + position] = [title, url];
                 position++;
             }
-            
             return {
                 id: guildId,
                 name: guild ? guild.name : "Unknown Guild",
+                loop: loopStatus[guildId],
                 queue: queuery
             };
         }));
@@ -82,7 +83,58 @@ client.on('messageCreate', async (message) => {
         }
         if (arg.startsWith('https')) {
             if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
-                queue_List(arg,message)
+                if (arg.includes("list=")) {
+                    const playlistId = arg.split("list=")[1].split("&")[0];
+                    const playlistItems = await playlist(playlistId,YouTube_API_Key);
+                    if (playlistItems && playlistItems.videoUrls.length > 0) {
+                        const videoCount = playlistItems.totalResults;
+                        const fastVideo = playlistItems.videoUrls[0];
+                        const fastVideotitle = playlistItems.videoTitles[0]
+                        message.channel.send({
+                            content: `再生リストから${videoCount}曲が見つかりました。\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`,
+                            components: [ new MessageActionRow().addComponents(
+                                new MessageButton()
+                                .setCustomId('confirm')
+                                .setLabel('✔')
+                                .setStyle('SUCCESS'),
+                                new MessageButton()
+                                .setCustomId('cancel')
+                                .setLabel('✖')
+                                .setStyle('DANGER')
+                            )]
+                        });
+                        const filter = (interaction) => interaction.user.id === message.author.id;
+                        message.channel.awaitMessageComponent({ filter, time: 30000 })
+                        .then(async (interaction) => {
+                            const guildId = message.guild.id;
+                            const queue = queues[guildId] || [];
+                            queues[guildId] = queue;
+                            if (interaction.customId === 'confirm') {
+                                const queueItem = { url: fastVideo, title: fastVideotitle }
+                                await queue_List(queueItem, message);
+                                message.channel.send(`最初の曲をキューに追加しました。`);
+                                for (let i = 1; i < playlistItems.videoUrls.length; i++) {
+                                    const url = playlistItems.videoUrls[i];
+                                    const title = playlistItems.videoTitles[i]
+                                    const queueItem = { url: url, title: title }
+                                    queue.push(queueItem)
+                                }
+                                return message.channel.send(`再生リストの曲をすべてキューに追加しました。`);
+                            }
+                            if (interaction.customId === 'cancel') {
+                                const queueItem = { url: fastVideo, title: fastVideotitle }
+                                queue_List(queueItem, message);
+                                return message.channel.send(`最初の曲をキューに追加しました。`);
+                            }
+                        })
+                        .catch(console.error);
+                        return;
+                    }
+                }
+                const info = await ytdl.getInfo(arg);
+                const title = info.videoDetails.title;
+                const queueItem = { url: url, title: title }
+                queue_List(queueItem,message)
                 return;
             }
             message.channel.send("指定されたURLには対応していません")
@@ -96,7 +148,10 @@ client.on('messageCreate', async (message) => {
     
                 if (results && results.length > 0) {
                     const url = results[0].link;
-                    queue_List(url,message)
+                    const info = await ytdl.getInfo(arg);
+                    const title = info.videoDetails.title;
+                    const queueItem = { url: url, title: title }
+                    queue_List(queueItem,message)
                 }
                 else {
                     message.channel.send("動画が見つかりませんでした")
@@ -106,8 +161,8 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "queue" || command === "q") {
-        const guildQueue = queues[guildId];
-        if (!guildQueue || guildQueue.length === 0) {
+        const queue = queues[guildId];
+        if (!queue || queue.length === 0) {
             const queueEmbed = new MessageEmbed()
                 .setTitle('キュー')
                 .setDescription('現在キューに曲はありません')
@@ -120,15 +175,19 @@ client.on('messageCreate', async (message) => {
                 .setColor('RED');
                 
             let position = 1;
-            for (let i = 0; i < guildQueue.length; i++) {
-                const url = guildQueue[i];
-                const info = await ytdl.getInfo(url);
-                const title = info.videoDetails.title;
+            for (let i = 0; i < queue.length; i++) {
+                const title = queue[i].title;
                 const queueField = i === 0 ? { name: "再生中", value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
                 queueEmbed.addFields(queueField);
                 position++;
+                if ((i + 1) % 25 === 0) {
+                    message.channel.send({ embeds: [queueEmbed] });
+                    queueEmbed.setTitle('');
+                    queueEmbed.setDescription('');
+                    queueEmbed.setColor('RED');
+                    queueEmbed.fields = [];
+                }
             }
-            
             message.channel.send({ embeds: [queueEmbed] });
         }
     }
@@ -160,14 +219,14 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-        if (command === "loop") {
-        const queue = queues[guildId];
-        if (queue && queue.length > 1) {
-            const latestTrack = queue[queue.length - 1];
-            queue.splice(1, 0, latestTrack);
-            play(message);
-        } else {
-            message.channel.send("キューに曲が追加されていません");
+    if (command === "loop") {
+        if(!loopStatus[guildId]){
+            loopStatus[guildId] = true
+            message.channel.send("リピート再生が有効になりました");
+        }
+        else{
+            loopStatus[guildId] = false
+            message.channel.send("リピート再生が無効になりました");
         }
     }
 
@@ -180,23 +239,24 @@ client.on('messageCreate', async (message) => {
                 { name: "!play,!p", value: "音楽を再生するためのコマンドです" },
                 { name: "!queue,!q", value: "現在の再生待機リストを確認できます" },
                 { name: "!stop,!dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
-                { name: "!skip", value: "キューが入っていた場合次の曲を再生します" }
+                { name: "!skip", value: "キューが入っていた場合次の曲を再生します" },
+                { name: "!loop", value: "リピート再生を有効化、無効化します。 デフォルト: 無効" }
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
     }
 });
 
-async function queue_List(url, message) {
+async function queue_List(queueItem, message) {
     const guildId = message.guild.id;
     const queue = queues[guildId] || [];
     queues[guildId] = queue;
     if (!isPlaying(guildId)) {
-        queue.push(url);
+        queue.push(queueItem);
         play(message);
     } else {
-        queue.push(url);
-        message.channel.send('キューに追加されました');
+        queue.push(queueItem);
+        message.channel.send(`キューに追加されました\nタイトル: ${queueItem.title}`);
     }
 }
 
@@ -212,6 +272,7 @@ async function play(message) {
         voiceConnections[guildId].disconnect();
         delete voiceConnections[guildId];
         delete queues[guildId];
+        delete loopStatus[guildId];
         return;
     }
     try {
@@ -219,20 +280,26 @@ async function play(message) {
             channelId: message.member.voice.channel.id,
             guildId: message.guild.id,
             adapterCreator: message.guild.voiceAdapterCreator
-        });          
+        });  
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
         delete queues[guildId];
         return;
     }
+    if(loopStatus[guildId]){
+        return;
+    }
+    else{
+        loopStatus[guildId] = false
+    }
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
     voiceConnections[guildId].subscribe(player);
-    const stream = ytdl(ytdl.getURLVideoID(queue_Now), {
+    const stream = ytdl(ytdl.getURLVideoID(queue_Now.url), {
         filter: format => format.audioCodec === 'opus' && format.container === 'webm',
         quality: 'highest',
-        highWaterMark: 512 * 1024 * 1024,
+        highWaterMark: 128 * 1024 * 1024,
     });
     const resource = createAudioResource(stream, {
         inputType: "webm/opus"
@@ -241,7 +308,7 @@ async function play(message) {
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {
             try {
-                const info = await ytdl.getInfo(queue_Now);
+                const info = await ytdl.getInfo(queue_Now.url);
                 const title = info.videoDetails.title;
                 const duration = info.videoDetails.lengthSeconds;
                 const embed = new MessageEmbed()
@@ -256,6 +323,9 @@ async function play(message) {
     });
     player.on('stateChange', (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            if(loopStatus[guildId]){
+                return play(message);
+            }
             queue.shift()
             if (queue.length > 0) {
                 play(message);
@@ -264,6 +334,7 @@ async function play(message) {
                     voiceConnections[guildId].disconnect();
                     delete voiceConnections[guildId];
                     delete queues[guildId];
+                    delete loopStatus[guildId];
                 }, 1000);
             }
         }
