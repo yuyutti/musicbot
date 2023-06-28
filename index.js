@@ -142,12 +142,13 @@ client.on('messageCreate', async (message) => {
             youtubeSearch(arg, searchOptions, async (err, results) => {
                 if (err) {
                     message.channel.send("内部エラーが発生しました")
+                    console.log(err)
                 return;
                 }
     
                 if (results && results.length > 0) {
                     const url = results[0].link;
-                    const info = await ytdl.getInfo(arg);
+                    const info = await ytdl.getInfo(url);
                     const title = info.videoDetails.title;
                     const queueItem = { url: url, title: title }
                     queue_List(queueItem,message)
