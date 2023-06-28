@@ -160,6 +160,17 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+        if (command === "loop") {
+        const queue = queues[guildId];
+        if (queue && queue.length > 1) {
+            const latestTrack = queue[queue.length - 1];
+            queue.splice(1, 0, latestTrack);
+            play(message);
+        } else {
+            message.channel.send("キューに曲が追加されていません");
+        }
+    }
+
     if (command === "help") {
         const helpEmbed = new MessageEmbed()
             .setTitle('使い方')
