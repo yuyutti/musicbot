@@ -8,6 +8,18 @@ const app = express()
 require('dotenv').config();
 
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
+const confirmButton = new MessageButton()
+    .setCustomId('confirm')
+    .setLabel('✔')
+    .setStyle('SUCCESS');
+
+const cancelButton = new MessageButton()
+    .setCustomId('cancel')
+    .setLabel('✖')
+    .setStyle('DANGER');
+
+const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
+
 
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
@@ -89,20 +101,9 @@ client.on('messageCreate', async (message) => {
                     if (playlistItems && playlistItems.videoUrls.length > 0) {
                         const videoCount = playlistItems.totalResults;
                         const fastVideo = playlistItems.videoUrls[0];
-                        const fastVideotitle = playlistItems.videoTitles[0]
-                        message.channel.send({
-                            content: `再生リストから${videoCount}曲が見つかりました。\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`,
-                            components: [ new MessageActionRow().addComponents(
-                                new MessageButton()
-                                .setCustomId('confirm')
-                                .setLabel('✔')
-                                .setStyle('SUCCESS'),
-                                new MessageButton()
-                                .setCustomId('cancel')
-                                .setLabel('✖')
-                                .setStyle('DANGER')
-                            )]
-                        });
+                        const fastVideotitle = playlistItems.videoTitles[0];
+                        message.channel.send("loading...");
+                        message.channel.send({ content: playlistItems.mess, components: [row] });
                         const filter = (interaction) => interaction.user.id === message.author.id;
                         message.channel.awaitMessageComponent({ filter, time: 30000 })
                         .then(async (interaction) => {
@@ -112,18 +113,19 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'confirm') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 await queue_List(queueItem, message);
-                                message.channel.send(`最初の曲をキューに追加しました。`);
+                                await interaction.reply(`最初の曲をキューに追加しました`);
                                 for (let i = 1; i < playlistItems.videoUrls.length; i++) {
                                     const url = playlistItems.videoUrls[i];
                                     const title = playlistItems.videoTitles[i]
                                     const queueItem = { url: url, title: title }
                                     queue.push(queueItem)
                                 }
-                                return message.channel.send(`再生リストの曲をすべてキューに追加しました。`);
+                                return message.channel.send(`${videoCount}曲をすべてキューに追加しました`);
                             }
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 queue_List(queueItem, message);
+                                await interaction.deferReply();
                             }
                         })
                         .catch(console.error);
@@ -175,18 +177,22 @@ client.on('messageCreate', async (message) => {
                 .setColor('RED');
                 
             let position = 1;
-            for (let i = 0; i < queue.length; i++) {
-                const title = queue[i].title;
-                const queueField = i === 0 ? { name: "再生中", value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
-                queueEmbed.addFields(queueField);
-                position++;
-                if ((i + 1) % 25 === 0) {
-                    message.channel.send({ embeds: [queueEmbed] });
-                    queueEmbed.setTitle('');
-                    queueEmbed.setDescription('');
-                    queueEmbed.setColor('RED');
-                    queueEmbed.fields = [];
+            try {
+                for (let i = 0; i < queue.length; i++) {
+                    const title = queue[i].title;
+                    const queueField = i === 0 ? { name: "再生中", value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
+                    queueEmbed.addFields(queueField);
+                    position++;
+                    if ((i + 1) % 25 === 0) {
+                        message.channel.send({ embeds: [queueEmbed] });
+                        queueEmbed.setTitle('\u0020');
+                        queueEmbed.setDescription('\u0020');
+                        queueEmbed.setColor('RED');
+                        queueEmbed.fields = [];
+                    }
                 }
+            } catch (error) {
+                console.log(error);
             }
             message.channel.send({ embeds: [queueEmbed] });
         }
@@ -209,15 +215,24 @@ client.on('messageCreate', async (message) => {
         }
     }
 
-    if (command === "skip") {
+    if (command === "skip" || command === "s") {
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
         const queue = queues[guildId];
         if(loopStatus[guildId]){
             message.channel.send("リピート再生が有効状態のためスキップは利用できません");
             return;
         }
         if (queue && queue.length > 1) {
-            queue.shift()
-            play(message);
+            if(/^\d+$/.test(arg)){
+                const int = parseInt(arg, 10)-1
+                for (let i = 0; i < int; i++) {
+                    queue.shift();
+                }
+                play(message);
+            }
+            else{
+                message.channel.send("整数で入力してください")
+            }
         } else {
             message.channel.send("キューに曲が追加されていません");
         }
@@ -240,11 +255,11 @@ client.on('messageCreate', async (message) => {
             .setDescription('プレフィックスは「!」です')
             .addFields(
                 { name: "コマンド", value: "説明" },
-                { name: "!play,!p", value: "音楽を再生するためのコマンドです" },
-                { name: "!queue,!q", value: "現在の再生待機リストを確認できます" },
-                { name: "!stop,!dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
-                { name: "!skip", value: "キューが入っていた場合次の曲を再生します" },
-                { name: "!loop", value: "リピート再生を有効化、無効化します。 デフォルト: 無効" }
+                { name: "!play, !p", value: "音楽を再生するためのコマンドです" },
+                { name: "!queue, !q", value: "現在の再生待機リストを確認できます" },
+                { name: "!stop, !dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
+                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します 再生待機リストの曲順を指定するとその曲までスキップします" },
+                { name: "!loop", value: "リピート再生を有効化、無効化します デフォルト: 無効" }
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
@@ -360,3 +375,11 @@ client.on('guildCreate', () => {updateActivity()});
 client.on('guildDelete', () => {updateActivity()});
 client.login(token);
 app.listen(3010)
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection:', reason);
+});

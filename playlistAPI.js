@@ -1,26 +1,48 @@
 async function playlist(playlistId, apiKey) {
     try {
-        const maxResults = 50; // 1回のリクエストで取得する最大数
-        let nextPageToken = ''; // 次のページのトークン
+        const maxResults = 50;
+        let nextPageToken = '';
+        let iterations = 0;
 
         let videoUrls = [];
         let videoTitles = [];
         let totalResults = 0;
+
+        if (playlistId.length === 13){
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${apiKey}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            totalResults = data.pageInfo.totalResults;
+
+            const videos = data.items;
+            videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
+            videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
+
+            const videoCount = totalResults;
+            const fastVideotitle = videoTitles[0];
+            const mess = `ミックスリストを${videoCount}曲読み込みました\nYouTubeの仕様によりミックスリストではユーザーによって異なるリストが生成されます\nミックスリストをキューに追加しますか？\n最初の曲: ${fastVideotitle}\nミックスリストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
+            return { videoUrls, videoTitles, totalResults, mess };
+        }
 
         do {
             const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${apiKey}&pageToken=${nextPageToken}`;
             const response = await fetch(url);
             const data = await response.json();
 
-            totalResults = data.pageInfo.totalResults;
+            totalResults += data.pageInfo.totalResults;
             nextPageToken = data.nextPageToken;
 
             const videos = data.items;
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
-        } while (nextPageToken);
+            iterations++;
+        } while (nextPageToken && iterations < 20);
 
-        return { videoUrls, videoTitles, totalResults };
+        const videoCount = totalResults;
+        const fastVideotitle = videoTitles[0];
+        const mess = `再生リストから${videoCount}曲が見つかりました。\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
+        return { videoUrls, videoTitles, totalResults, mess };
     } catch (error) {
         console.error('Failed to get playlist videos:', error);
     }
