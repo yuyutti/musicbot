@@ -222,6 +222,10 @@ client.on('messageCreate', async (message) => {
             message.channel.send("リピート再生が有効状態のためスキップは利用できません");
             return;
         }
+        if(!arg){
+            queue.shift();
+            return play(message);
+        }
         if (queue && queue.length > 1) {
             if(/^\d+$/.test(arg)){
                 const int = parseInt(arg, 10)-1
