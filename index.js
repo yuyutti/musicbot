@@ -96,13 +96,13 @@ client.on('messageCreate', async (message) => {
         if (arg.startsWith('https')) {
             if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
                 if (arg.includes("list=")) {
+                    message.channel.send("loading...");
                     const playlistId = arg.split("list=")[1].split("&")[0];
                     const playlistItems = await playlist(playlistId,YouTube_API_Key);
                     if (playlistItems && playlistItems.videoUrls.length > 0) {
                         const videoCount = playlistItems.totalResults;
                         const fastVideo = playlistItems.videoUrls[0];
                         const fastVideotitle = playlistItems.videoTitles[0];
-                        message.channel.send("loading...");
                         message.channel.send({ content: playlistItems.mess, components: [row] });
                         const filter = (interaction) => interaction.user.id === message.author.id;
                         message.channel.awaitMessageComponent({ filter, time: 30000 })
@@ -120,7 +120,11 @@ client.on('messageCreate', async (message) => {
                                     const queueItem = { url: url, title: title }
                                     queue.push(queueItem)
                                 }
-                                return message.channel.send(`${videoCount}曲をすべてキューに追加しました`);
+                                let limitedVideoCount = videoCount;
+                                if (videoCount > 1000) {
+                                    limitedVideoCount = 1000;
+                                }
+                                return message.channel.send(`${limitedVideoCount}曲をすべてキューに追加しました`);
                             }
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
@@ -128,7 +132,11 @@ client.on('messageCreate', async (message) => {
                                 await interaction.deferReply();
                             }
                         })
-                        .catch(console.error);
+                        .catch(async() => {
+                            message.channel.send("インタラクトがなかったためタイムアウトしました\n最初の曲を再生します");
+                            const queueItem = { url: fastVideo, title: fastVideotitle }
+                            await queue_List(queueItem, message);
+                        })
                         return;
                     }
                 }
@@ -224,7 +232,7 @@ client.on('messageCreate', async (message) => {
         }
         if(!arg){
             queue.shift();
-            return play(message);
+            play(message);
         }
         if (queue && queue.length > 1) {
             if(/^\d+$/.test(arg)){
@@ -317,16 +325,17 @@ async function play(message) {
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
-    voiceConnections[guildId].subscribe(player);
+    await voiceConnections[guildId].subscribe(player);
     const stream = ytdl(ytdl.getURLVideoID(queue_Now.url), {
-        filter: format => format.audioCodec === 'opus' && format.container === 'webm',
+        filter: format => format.audioCodec === 'opus',
         quality: 'highest',
-        highWaterMark: 128 * 1024 * 1024,
+        highWaterMark: 64 * 1024 * 1024,
     });
     const resource = createAudioResource(stream, {
-        inputType: "webm/opus"
+        inputType: "webm/opus",
+        bitrate: 64,
     });
-    await player.play(resource);
+    player.play(resource);
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {
             try {

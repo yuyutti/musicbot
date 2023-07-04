@@ -41,7 +41,11 @@ async function playlist(playlistId, apiKey) {
 
         const videoCount = totalResults;
         const fastVideotitle = videoTitles[0];
-        const mess = `再生リストから${videoCount}曲が見つかりました。\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
+        let warning = ''
+        if(videoCount > 1000){
+            warning = "\n1度に取得できる最大曲数は1000曲です。"
+        }
+        const mess = `再生リストから${videoCount}曲が見つかりました。${warning}\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
         return { videoUrls, videoTitles, totalResults, mess };
     } catch (error) {
         console.error('Failed to get playlist videos:', error);
