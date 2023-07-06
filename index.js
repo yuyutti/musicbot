@@ -88,10 +88,26 @@ client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
+    
     if (command === 'play' || command === "p") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
-            return message.channel.send("URLまたはキーワードが入力されていません"); 
+            const playlistItems = await playlist('PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB',YouTube_API_Key);
+            const guildId = message.guild.id;
+            const queue = queues[guildId] || [];
+            queues[guildId] = queue;
+            const fastVideo = playlistItems.videoUrls[0];
+            const fastVideotitle = playlistItems.videoTitles[0];
+            const queueItem = { url: fastVideo, title: fastVideotitle }
+            await queue_List(queueItem, message);
+            await message.channel.send("日本のトレンド曲を再生します");
+            for (let i = 1; i < playlistItems.videoUrls.length; i++) {
+                const url = playlistItems.videoUrls[i];
+                const title = playlistItems.videoTitles[i]
+                const queueItem = { url: url, title: title }
+                queue.push(queueItem)
+            }
+            return;
         }
         if (arg.startsWith('https')) {
             if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
@@ -168,6 +184,44 @@ client.on('messageCreate', async (message) => {
                 }
             });
         }
+    }
+
+    if (command === "playsearch" || command === "ps") {
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        if(!arg){
+            return message.channel.send("キーワードが入力されていません"); 
+        }
+        youtubeSearch(arg, searchOptions, async (err, results) => {
+            if (err) {
+                message.channel.send("内部エラーが発生しました")
+                console.log(err)
+            return;
+            }
+
+            if (results && results.length > 0) {
+                if (results.length < 50) {
+                    for (let i = 0; i < results.length; i++) {
+                        const url = results[i].link;
+                        const info = await ytdl.getInfo(url);
+                        const title = info.videoDetails.title;
+                        const queueItem = { url: url, title: title };
+                        queue_List(queueItem, message);
+                    }
+                    message.channel.send(`${results.length} 曲をキューに追加しました。`);
+                } else {
+                    for (let i = 0; i < 50; i++) {
+                        const url = results[i].link;
+                        const info = await ytdl.getInfo(url);
+                        const title = info.videoDetails.title;
+                        const queueItem = { url: url, title: title };
+                        queue_List(queueItem, message);
+                    }
+                    message.channel.send("50曲をキューに追加しました。");
+                }
+            } else {
+                message.channel.send("動画が見つかりませんでした。");
+            }
+        });
     }
 
     if (command === "queue" || command === "q") {
@@ -383,7 +437,18 @@ const updateActivity = () => {
     const voiceCount = Object.keys(voiceConnections).length;
     client.user.setActivity(`!help | ${voiceCount}VC ${serverCount} Servers`)
 }
-client.on('voiceStateUpdate', () => {updateActivity()});
+client.on('voiceStateUpdate', (oldState, newState) => {
+    updateActivity()
+    const voiceChannel = newState.channel;
+    const guildId = newState.guild.id;
+
+    if (voiceChannel && voiceChannel.members.length === 1 && voiceChannel.members.has(client.user.id)) {
+        voiceConnections[guildId].disconnect();
+        delete voiceConnections[guildId];
+        delete queues[guildId];
+        delete loopStatus[guildId];
+    }
+});
 client.on('guildCreate', () => {updateActivity()});
 client.on('guildDelete', () => {updateActivity()});
 client.login(token);
