@@ -1,3 +1,7 @@
+// やることリスト
+// ・VCメンバーがBOTのみになると退出
+// ・VCから切断された場合の退出処理処理
+
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
