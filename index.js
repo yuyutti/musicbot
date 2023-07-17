@@ -291,6 +291,7 @@ client.on('messageCreate', async (message) => {
         if(!arg){
             queue.shift();
             play(message);
+            return;
         }
         if (queue && queue.length > 1) {
             if(/^\d+$/.test(arg)){
@@ -299,6 +300,7 @@ client.on('messageCreate', async (message) => {
                     queue.shift();
                 }
                 play(message);
+                return;
             }
             else{
                 message.channel.send("整数で入力してください")
