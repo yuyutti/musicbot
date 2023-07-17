@@ -6,7 +6,7 @@ const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = requi
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const youtubeSearch = require('youtube-search');
-const { playlist } = require('./playlistAPI');
+const { playlist, NextPlay } = require('./YouTubeAPI');
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -34,9 +34,15 @@ const searchOptions = {
     key: YouTube_API_Key,
     type: 'video'
 };
+const PlaySearchOptions = {
+    maxResults: 50,
+    key: YouTube_API_Key,
+    type: 'video'
+};
 
 let queues = {};
 let loopStatus = {};
+let autoplayStatus = {};
 const voiceConnections = {};
 
 app.get('/queue', async (req, res) => {
@@ -56,6 +62,7 @@ app.get('/queue', async (req, res) => {
                 id: guildId,
                 name: guild ? guild.name : "Unknown Guild",
                 loop: loopStatus[guildId],
+                autoplay: autoplayStatus[guildId],
                 queue: queuery
             };
         }));
@@ -195,7 +202,7 @@ client.on('messageCreate', async (message) => {
         if(!arg){
             return message.channel.send("キーワードが入力されていません"); 
         }
-        youtubeSearch(arg, searchOptions, async (err, results) => {
+        youtubeSearch(arg, PlaySearchOptions, async (err, results) => {
             if (err) {
                 message.channel.send("内部エラーが発生しました")
                 console.log(err)
@@ -267,17 +274,17 @@ client.on('messageCreate', async (message) => {
     if (command === "stop" || command === "dc") {
         const voiceGuildIds = Object.keys(voiceConnections);
         for (const voiceGuildId of voiceGuildIds) {
-        if (voiceGuildId === guildId) {
-            try {
-            voiceConnections[guildId].disconnect();
-            delete voiceConnections[guildId];
-            delete queues[guildId];
-            message.channel.send("再生を停止しました");
+            if (voiceGuildId === guildId) {
+                try {
+                voiceConnections[guildId].disconnect();
+                delete voiceConnections[guildId];
+                delete queues[guildId];
+                message.channel.send("再生を停止しました");
+                }
+                catch(err) {
+                message.channel.send("現在再生中の曲はありません");
+                }
             }
-            catch(err) {
-            message.channel.send("現在再生中の曲はありません");
-            }
-        }
         }
     }
 
@@ -321,16 +328,27 @@ client.on('messageCreate', async (message) => {
         }
     }
 
+    if (command === "autoplay" | command === "auto" | command === "ap") {
+        if(!autoplayStatus[guildId]){
+            autoplayStatus[guildId] = true
+            message.channel.send("自動再生が有効になりました");
+        }
+        else{
+            autoplayStatus[guildId] = false
+            message.channel.send("自動再生が無効になりました");
+        }
+    }
+
     if (command === "help") {
         const helpEmbed = new MessageEmbed()
             .setTitle('使い方')
             .setDescription('プレフィックスは「!」です')
             .addFields(
                 { name: "コマンド", value: "説明" },
-                { name: "!play, !p", value: "音楽を再生するためのコマンドです" },
+                { name: "!play, !p", value: "音楽を再生するためのコマンドです | コマンド単体で実行すると日本のトレンド曲を自動再生します" },
                 { name: "!queue, !q", value: "現在の再生待機リストを確認できます" },
                 { name: "!stop, !dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
-                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します 再生待機リストの曲順を指定するとその曲までスキップします" },
+                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします(15曲目の曲にスキップしたい場合 例: !skip 15)" },
                 { name: "!loop", value: "リピート再生を有効化、無効化します デフォルト: 無効" }
             )
             .setColor('RED');
@@ -364,6 +382,7 @@ async function play(message) {
         delete voiceConnections[guildId];
         delete queues[guildId];
         delete loopStatus[guildId];
+        delete autoplayStatus[guildId];
         return;
     }
     try {
@@ -377,11 +396,8 @@ async function play(message) {
         delete queues[guildId];
         return;
     }
-    if(loopStatus[guildId]){
-    }
-    else{
-        loopStatus[guildId] = false
-    }
+    loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
+    autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;    
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
@@ -412,10 +428,19 @@ async function play(message) {
             }
         }
     });
-    player.on('stateChange', (oldState, newState) => {
+    player.on('stateChange', async(oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
             if(loopStatus[guildId]){
                 return play(message);
+            }
+            if (queue.length === 1){
+                if(autoplayStatus[guildId]){
+                    const queue = queues[guildId];
+                    const NowPlaying = queue[1].url
+                    const NextPlayVideoItem = await NextPlay(NowPlaying,YouTube_API_Key)
+                    const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
+                    await queue_List(queueItem, message);
+                }
             }
             queue.shift()
             if (queue.length > 0) {
@@ -426,6 +451,7 @@ async function play(message) {
                     delete voiceConnections[guildId];
                     delete queues[guildId];
                     delete loopStatus[guildId];
+                    delete autoplayStatus[guildId];
                 }, 1000);
             }
         }

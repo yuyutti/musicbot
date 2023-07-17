@@ -52,4 +52,27 @@ async function playlist(playlistId, apiKey) {
     }
 }
 
-module.exports = { playlist }
+async function NextPlay(playlistId, apiKey) {
+    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&relatedToVideoId=${playlistId}&key=${apiKey}`;
+
+    try {
+    const response = await fetch(url);
+    const data = await response.json();
+
+        if (data.items && data.items.length > 0) {
+            const relatedVideo = data.items[0];
+            const title = relatedVideo.snippet.title;
+            const videoId = relatedVideo.id.videoId;
+            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+            
+            return { title, videoUrl };
+        } else {
+            return null;
+        }
+    } catch (error) {
+        console.log(error);
+        return null;
+    }
+}
+
+module.exports = { playlist, NextPlay }
