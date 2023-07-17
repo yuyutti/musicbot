@@ -2,11 +2,14 @@
 // ・VCメンバーがBOTのみになると退出
 // ・VCから切断された場合の退出処理処理
 
+//playsearch改修中
+//play検索機能つかえません
+
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const youtubeSearch = require('youtube-search');
-const { playlist, NextPlay } = require('./YouTubeAPI');
+const { playlist, NextPlay, search } = require('./YouTubeAPI');
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -27,23 +30,11 @@ const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
 
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
-const YouTube_API_Key = process.env.YouTube_API_KEY
-
-const searchOptions = {
-    maxResults: 1,
-    key: YouTube_API_Key,
-    type: 'video'
-};
-const PlaySearchOptions = {
-    maxResults: 50,
-    key: YouTube_API_Key,
-    type: 'video'
-};
 
 let queues = {};
 let loopStatus = {};
 let autoplayStatus = {};
-const voiceConnections = {};
+let voiceConnections = {};
 
 app.get('/queue', async (req, res) => {
     try{
@@ -103,7 +94,7 @@ client.on('messageCreate', async (message) => {
     if (command === 'play' || command === "p") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
-            const playlistItems = await playlist('PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB',YouTube_API_Key);
+            const playlistItems = await playlist('PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB');
             const guildId = message.guild.id;
             const queue = queues[guildId] || [];
             queues[guildId] = queue;
@@ -125,7 +116,7 @@ client.on('messageCreate', async (message) => {
                 if (arg.includes("list=")) {
                     message.channel.send("loading...");
                     const playlistId = arg.split("list=")[1].split("&")[0];
-                    const playlistItems = await playlist(playlistId,YouTube_API_Key);
+                    const playlistItems = await playlist(playlistId);
                     if (playlistItems && playlistItems.videoUrls.length > 0) {
                         const videoCount = playlistItems.totalResults;
                         const fastVideo = playlistItems.videoUrls[0];
@@ -202,37 +193,13 @@ client.on('messageCreate', async (message) => {
         if(!arg){
             return message.channel.send("キーワードが入力されていません"); 
         }
-        youtubeSearch(arg, PlaySearchOptions, async (err, results) => {
-            if (err) {
-                message.channel.send("内部エラーが発生しました")
-                console.log(err)
-            return;
-            }
-
-            if (results && results.length > 0) {
-                if (results.length < 50) {
-                    for (let i = 0; i < results.length; i++) {
-                        const url = results[i].link;
-                        const info = await ytdl.getInfo(url);
-                        const title = info.videoDetails.title;
-                        const queueItem = { url: url, title: title };
-                        queue_List(queueItem, message);
-                    }
-                    message.channel.send(`${results.length} 曲をキューに追加しました。`);
-                } else {
-                    for (let i = 0; i < 50; i++) {
-                        const url = results[i].link;
-                        const info = await ytdl.getInfo(url);
-                        const title = info.videoDetails.title;
-                        const queueItem = { url: url, title: title };
-                        queue_List(queueItem, message);
-                    }
-                    message.channel.send("50曲をキューに追加しました。");
-                }
-            } else {
-                message.channel.send("動画が見つかりませんでした。");
-            }
-        });
+        const SearchResults = await search(arg)
+        if(SearchResults){
+            console.log(SearchResults)
+        }
+        else{
+            return message.channel.send("一致する動画が見つかりませんでした")
+        }
     }
 
     if (command === "queue" || command === "q") {
@@ -295,6 +262,15 @@ client.on('messageCreate', async (message) => {
             message.channel.send("リピート再生が有効状態のためスキップは利用できません");
             return;
         }
+        if(autoplayStatus[guildId]){
+            const queue = queues[guildId];
+            const VideoURL = queue[0].url
+            const NextPlayVideoItem = await NextPlay(VideoURL)
+            const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
+            queue.push(queueItem);
+            queue.shift();
+            return await play(message);
+        }
         if(!arg){
             queue.shift();
             play(message);
@@ -318,6 +294,9 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "loop") {
+        if(!voiceConnections[guildId]){
+            return message.channel.send("VCに参加してからコマンドを実行してください");
+        }
         if(!loopStatus[guildId]){
             loopStatus[guildId] = true
             message.channel.send("リピート再生が有効になりました");
@@ -329,6 +308,9 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "autoplay" | command === "auto" | command === "ap") {
+        if(!voiceConnections[guildId]){
+            return message.channel.send("VCに参加してからコマンドを実行してください");
+        }
         if(!autoplayStatus[guildId]){
             autoplayStatus[guildId] = true
             message.channel.send("自動再生が有効になりました");
@@ -436,10 +418,12 @@ async function play(message) {
             if (queue.length === 1){
                 if(autoplayStatus[guildId]){
                     const queue = queues[guildId];
-                    const NowPlaying = queue[1].url
-                    const NextPlayVideoItem = await NextPlay(NowPlaying,YouTube_API_Key)
+                    const VideoURL = queue[0].url
+                    const NextPlayVideoItem = await NextPlay(VideoURL)
                     const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
-                    await queue_List(queueItem, message);
+                    queue.push(queueItem);
+                    queue.shift();
+                    return await play(message);
                 }
             }
             queue.shift()

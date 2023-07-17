@@ -1,4 +1,7 @@
-async function playlist(playlistId, apiKey) {
+require('dotenv').config();
+const YouTube_API_Key = process.env.YouTube_API_KEY
+
+async function playlist(playlistId) {
     try {
         const maxResults = 50;
         let nextPageToken = '';
@@ -9,7 +12,7 @@ async function playlist(playlistId, apiKey) {
         let totalResults = 0;
 
         if (playlistId.length === 13){
-            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${apiKey}`;
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_Key}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -26,7 +29,7 @@ async function playlist(playlistId, apiKey) {
         }
 
         do {
-            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${apiKey}&pageToken=${nextPageToken}`;
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_Key}&pageToken=${nextPageToken}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -52,19 +55,42 @@ async function playlist(playlistId, apiKey) {
     }
 }
 
-async function NextPlay(playlistId, apiKey) {
-    const url = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=1&relatedToVideoId=${playlistId}&key=${apiKey}`;
+async function search(searchQuery) {
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(searchQuery)}&key=${YouTube_API_Key}`;
+    console.log(searchUrl)
+    try {
+        const response = await fetch(searchUrl);
+        const data = await response.json();
+
+        const videoUrls = data.items.map(item => `https://www.youtube.com/watch?v=${item.id.videoId}`);
+        const videoTitles = data.items.map(item => item.snippet.title);
+        const totalResults = data.pageInfo.totalResults;
+
+        return { videoUrls, videoTitles, totalResults };
+    } catch (error) {
+        console.error(error);
+        return null;
+    }
+}
+
+async function NextPlay(VideoURL) {
+    const regex = /(?:\?v=|\/embed\/|\/v\/|\.be\/|\/shorts\/)([\w-]+)(?:\S+)?$/;
+    const matchResult = VideoURL.match(regex);
+    const vid = matchResult ? matchResult[1] : null;
+    const url = `https://www.youtube.com/watch?v=${vid}`;
 
     try {
     const response = await fetch(url);
-    const data = await response.json();
-
-        if (data.items && data.items.length > 0) {
-            const relatedVideo = data.items[0];
-            const title = relatedVideo.snippet.title;
-            const videoId = relatedVideo.id.videoId;
+    const data = await response.text();
+    const regex = /var ytInitialData = ({[\s\S]*?});/;
+    const match = data.match(regex);
+    
+        if (match) {
+            const responsematchdata = match[1];
+            const parsedData = JSON.parse(responsematchdata);
+            const title = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[0].compactVideoRenderer.title.simpleText;
+            const videoId = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[0].compactVideoRenderer.videoId;
             const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            
             return { title, videoUrl };
         } else {
             return null;
@@ -75,4 +101,4 @@ async function NextPlay(playlistId, apiKey) {
     }
 }
 
-module.exports = { playlist, NextPlay }
+module.exports = { playlist, NextPlay, search }
