@@ -1,13 +1,9 @@
 // やることリスト
-// ・VCメンバーがBOTのみになると退出
 // ・VCから切断された場合の退出処理処理
-
-//・play検索機能つかえません
 
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-const youtubeSearch = require('youtube-search');
 const { playlist, NextPlay, search } = require('./YouTubeAPI');
 const express = require('express')
 const app = express()
@@ -25,7 +21,6 @@ const cancelButton = new MessageButton()
     .setStyle('DANGER');
 
 const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
-
 
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
@@ -166,24 +161,18 @@ client.on('messageCreate', async (message) => {
             message.channel.send("指定されたURLには対応していません")
         }
         else {
-            youtubeSearch(arg, searchOptions, async (err, results) => {
-                if (err) {
-                    message.channel.send("内部エラーが発生しました")
-                    console.log(err)
-                return;
-                }
-    
-                if (results && results.length > 0) {
-                    const url = results[0].link;
-                    const info = await ytdl.getInfo(url);
-                    const title = info.videoDetails.title;
-                    const queueItem = { url: url, title: title }
-                    queue_List(queueItem,message)
-                }
-                else {
-                    message.channel.send("動画が見つかりませんでした")
-                }
-            });
+            const SearchResults = await search(arg,1)
+            if(SearchResults.videoTitles.length > 0){
+                const selectedSong = {
+                    title: SearchResults.videoTitles[0],
+                    url: SearchResults.videoUrls[0]
+                };
+                const queueItem = { url: selectedSong.url, title: selectedSong.title }
+                queue_List(queueItem,message)
+            }
+            else{
+                message.channel.send("動画が見つかりませんでした")
+            }
         }
     }
 
@@ -193,7 +182,7 @@ client.on('messageCreate', async (message) => {
         if(!arg){
             return message.channel.send("キーワードが入力されていません"); 
         }
-        const SearchResults = await search(arg)
+        const SearchResults = await search(arg,10)
         if(SearchResults){
             const queueEmbed = new MessageEmbed()
             .setTitle('検索結果')
@@ -386,14 +375,19 @@ client.on('messageCreate', async (message) => {
     if (command === "help") {
         const helpEmbed = new MessageEmbed()
             .setTitle('使い方')
-            .setDescription('プレフィックスは「!」です')
+            .setDescription('コマンドプレフィックスは「!」です')
             .addFields(
                 { name: "コマンド", value: "説明" },
-                { name: "!play, !p", value: "音楽を再生するためのコマンドです | コマンド単体で実行すると日本のトレンド曲を自動再生します" },
+                { name: "!play, !p", value: "音楽を再生するためのコマンドです\nコマンド単体で実行すると日本のトレンド曲を自動再生します" },
+                { name: "!playsearch, !ps", value: "音楽を再生するためのコマンドです、検索上位10を表示します" },
+                { name: "!play, !playsearchコマンドの使用例", value: "!play <URL or キーワード>\n!playsearch <キーワード>" },
                 { name: "!queue, !q", value: "現在の再生待機リストを確認できます" },
                 { name: "!stop, !dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
-                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします(15曲目の曲にスキップしたい場合 例: !skip 15)" },
-                { name: "!loop", value: "リピート再生を有効化、無効化します デフォルト: 無効" }
+                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします" },
+                { name: "!skipコマンドの使用例", value: "次の曲にスキップしたい場合 例: !skip\n15曲目の曲にスキップしたい場合 例: !skip 15" },
+                { name: "!loop", value: "リピート再生を有効化、無効化します デフォルト: 無効" },
+                { name: "!autoplay, !auto, !ap", value: "自動再生を有効化、無効化します デフォルト: 無効" },
+                { name: "短縮コマンドに関して", value: "短縮コマンドが設定されているコマンドは、短縮コマンドでも同様の動作を行うため使用して頂いて問題ありません" },
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
@@ -505,9 +499,14 @@ async function play(message) {
 }
 
 function formatDuration(duration) {
-    const minutes = Math.floor(duration / 60);
+    const hours = Math.floor(duration / 3600);
+    const minutes = Math.floor((duration % 3600) / 60);
     const seconds = duration % 60;
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    if (hours > 0) {
+        return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+    } else {
+        return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
 }
 
 const updateActivity = () => {
@@ -517,14 +516,20 @@ const updateActivity = () => {
 }
 client.on('voiceStateUpdate', (oldState, newState) => {
     updateActivity()
-    const voiceChannel = newState.channel;
-    const guildId = newState.guild.id;
-
-    if (voiceChannel && voiceChannel.members.length === 1 && voiceChannel.members.has(client.user.id)) {
-        voiceConnections[guildId].disconnect();
-        delete voiceConnections[guildId];
-        delete queues[guildId];
-        delete loopStatus[guildId];
+    const botId = client.user.id;
+    const oldVoiceChannel = oldState.channel;
+    const newVoiceChannel = newState.channel;
+    
+    if (oldVoiceChannel && oldVoiceChannel.members.has(botId) && !newVoiceChannel) {
+        const guildId = newState.guild.id;
+        const memberCount = oldVoiceChannel ? oldVoiceChannel.members.size : 0;
+        if(memberCount === 1){
+            voiceConnections[guildId].disconnect();
+            delete voiceConnections[guildId];
+            delete queues[guildId];
+            delete loopStatus[guildId];
+            delete autoplayStatus[guildId];
+        }
     }
 });
 client.on('guildCreate', () => {updateActivity()});
@@ -535,7 +540,6 @@ app.listen(3010)
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
 });
-
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
 });
