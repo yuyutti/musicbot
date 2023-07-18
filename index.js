@@ -2,8 +2,7 @@
 // ・VCメンバーがBOTのみになると退出
 // ・VCから切断された場合の退出処理処理
 
-//playsearch改修中
-//play検索機能つかえません
+//・play検索機能つかえません
 
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
@@ -190,12 +189,75 @@ client.on('messageCreate', async (message) => {
 
     if (command === "playsearch" || command === "ps") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        const commandAuthor = message.author;
         if(!arg){
             return message.channel.send("キーワードが入力されていません"); 
         }
         const SearchResults = await search(arg)
         if(SearchResults){
-            console.log(SearchResults)
+            const queueEmbed = new MessageEmbed()
+            .setTitle('検索結果')
+            .setDescription('追加したい曲番号を送信してください')
+            .setColor('RED');
+            try {
+                for (let i = 0; i < SearchResults.videoTitles.length; i++) {
+                    const title = SearchResults.videoTitles[i];
+                    const embed = { name: `No.${i + 1}`, value: `**${title}**` }
+                    queueEmbed.addFields(embed)
+                }
+            } catch (error) {
+                console.log(error);
+            }
+            await message.channel.send({ embeds: [queueEmbed] });
+            const filter = (msg) => {
+                return !msg.author.bot && msg.author.id === commandAuthor.id;
+            };
+            const collector = message.channel.createMessageCollector({ filter, time: 30000 });
+        
+            collector.on('collect', (msg) => {
+                const input = msg.content.trim();
+                const songIndex = parseInt(input, 10);
+                const queue = queues[guildId] || [];
+                queues[guildId] = queue;
+                if (input.toLowerCase() === 'all') {
+                    for (let i = 0; i < SearchResults.videoTitles.length; i++) {
+                        if(i === 0){
+                            const selectedSong = {
+                                title: SearchResults.videoTitles[i],
+                                url: SearchResults.videoUrls[i]
+                            };
+                            const queueItem = { url: selectedSong.url, title: selectedSong.title }
+                            queue_List(queueItem,message)
+                        }
+                        const selectedSong = {
+                            title: SearchResults.videoTitles[i],
+                            url: SearchResults.videoUrls[i]
+                        };
+                        const queueItem = { url: selectedSong.url, title: selectedSong.title }
+                        queue.push(queueItem)
+                    }
+                    msg.channel.send('全ての曲をキューに追加しました。');
+                    return collector.stop();
+                }
+
+                if (!isNaN(songIndex) && songIndex >= 1 && songIndex <= SearchResults.videoTitles.length) {
+                    const selectedSong = {
+                    title: SearchResults.videoTitles[songIndex - 1],
+                    url: SearchResults.videoUrls[songIndex - 1]
+                    };
+
+                    const queueItem = { url: selectedSong.url, title: selectedSong.title }
+                    queue_List(queueItem,message)
+                    collector.stop();
+                } else {
+                    msg.channel.send('正しい曲番号を送信してください');
+                }
+            });
+            collector.on('end', (collected, reason) => {
+                if (reason === 'time') {
+                    message.channel.send('入力がタイムアウトしました');
+                }
+            });
         }
         else{
             return message.channel.send("一致する動画が見つかりませんでした")

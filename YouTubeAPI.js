@@ -56,8 +56,7 @@ async function playlist(playlistId) {
 }
 
 async function search(searchQuery) {
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=50&q=${encodeURIComponent(searchQuery)}&key=${YouTube_API_Key}`;
-    console.log(searchUrl)
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=10&q=${encodeURIComponent(searchQuery)}&key=${YouTube_API_Key}`;
     try {
         const response = await fetch(searchUrl);
         const data = await response.json();
