@@ -84,7 +84,7 @@ client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
-    
+
     if (command === 'play' || command === "p") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
@@ -125,7 +125,12 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'confirm') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 await queue_List(queueItem, message);
-                                await interaction.reply(`最初の曲をキューに追加しました`);
+                                if(interaction.locale === 'ja'){
+                                    await interaction.reply(`最初の曲をキューに追加しました`);
+                                }
+                                else{
+                                    await interaction.reply(`Add first song to queue!`);
+                                }
                                 for (let i = 1; i < playlistItems.videoUrls.length; i++) {
                                     const url = playlistItems.videoUrls[i];
                                     const title = playlistItems.videoTitles[i]
@@ -136,7 +141,12 @@ client.on('messageCreate', async (message) => {
                                 if (videoCount > 1000) {
                                     limitedVideoCount = 1000;
                                 }
-                                return message.channel.send(`${limitedVideoCount}曲をすべてキューに追加しました`);
+                                if(interaction.locale === 'ja'){
+                                    return message.channel.send(`${limitedVideoCount}曲をすべてキューに追加しました`);
+                                }
+                                else{
+                                    return message.channel.send(`All ${limitedVideoCount} songs have been added to the queue!`);
+                                }
                             }
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
