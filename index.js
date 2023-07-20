@@ -385,19 +385,19 @@ client.on('messageCreate', async (message) => {
     if (command === "help") {
         const helpEmbed = new MessageEmbed()
             .setTitle('使い方')
-            .setDescription('コマンドプレフィックスは「!」です')
+            .setDescription(`コマンドプレフィックスは「${prefix}」です`)
             .addFields(
-                { name: "コマンド", value: "説明" },
-                { name: "!play, !p", value: "音楽を再生するためのコマンドです\nコマンド単体で実行すると日本のトレンド曲を自動再生します" },
-                { name: "!playsearch, !ps", value: "音楽を再生するためのコマンドです、検索上位10を表示します" },
-                { name: "!play, !playsearchコマンドの使用例", value: "!play <URL or キーワード>\n!playsearch <キーワード>" },
-                { name: "!queue, !q", value: "現在の再生待機リストを確認できます" },
-                { name: "!stop, !dc", value: "現在再生中の曲を停止してVCから切断します(キューもクリアされます)" },
-                { name: "!skip, !s", value: "キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします" },
-                { name: "!skipコマンドの使用例", value: "次の曲にスキップしたい場合 例: !skip\n15曲目の曲にスキップしたい場合 例: !skip 15" },
-                { name: "!loop", value: "リピート再生を有効化、無効化します デフォルト: 無効" },
-                { name: "!autoplay, !auto, !ap", value: "自動再生を有効化、無効化します デフォルト: 無効" },
-                { name: "短縮コマンドに関して", value: "短縮コマンドが設定されているコマンドは、短縮コマンドでも同様の動作を行うため使用して頂いて問題ありません" },
+                { name: `コマンド`, value: `説明` },
+                { name: `${prefix}play, ${prefix}p`, value: `音楽を再生するためのコマンドです\nコマンド単体で実行すると日本のトレンド曲を自動再生します` },
+                { name: `${prefix}playsearch, ${prefix}ps`, value: `音楽を再生するためのコマンドです、検索上位10を表示します` },
+                { name: `${prefix}play, ${prefix}playsearchコマンドの使用例`, value: `${prefix}play <URL or キーワード>\n${prefix}playsearch <キーワード>` },
+                { name: `${prefix}queue, ${prefix}q`, value: `現在の再生待機リストを確認できます` },
+                { name: `${prefix}stop, ${prefix}dc`, value: `現在再生中の曲を停止してVCから切断します(キューもクリアされます)` },
+                { name: `${prefix}skip, ${prefix}s`, value: `キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします` },
+                { name: `${prefix}skipコマンドの使用例`, value: `次の曲にスキップしたい場合 例: ${prefix}skip\n15曲目の曲にスキップしたい場合 例: ${prefix}skip 15` },
+                { name: `${prefix}loop`, value: `リピート再生を有効化、無効化します デフォルト: 無効` },
+                { name: `${prefix}autoplay, ${prefix}auto, ${prefix}ap`, value: `自動再生を有効化、無効化します デフォルト: 無効` },
+                { name: `短縮コマンドに関して`, value: `短縮コマンドが設定されているコマンドは、短縮コマンドでも同様の動作を行うため使用して頂いて問題ありません` },
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
