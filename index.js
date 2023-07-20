@@ -1,8 +1,5 @@
-// やることリスト
-// ・VCから切断された場合の退出処理処理
-
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
-const { joinVoiceChannel, createAudioResource, playAudioResource, AudioPlayerStatus, createAudioPlayer } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const { playlist, NextPlay, search } = require('./YouTubeAPI');
 const express = require('express')
@@ -304,16 +301,15 @@ client.on('messageCreate', async (message) => {
         for (const voiceGuildId of voiceGuildIds) {
             if (voiceGuildId === guildId) {
                 try {
-                voiceConnections[guildId].disconnect();
-                delete voiceConnections[guildId];
-                delete queues[guildId];
-                message.channel.send("再生を停止しました");
+                    disconnect(guildId)
+                    return message.channel.send("再生を停止しました");
                 }
                 catch(err) {
-                message.channel.send("現在再生中の曲はありません");
+                    return message.channel.send("現在再生中の曲はありません");
                 }
             }
         }
+        return message.channel.send("現在再生中ではありません");
     }
 
     if (command === "skip" || command === "s") {
@@ -408,7 +404,7 @@ async function queue_List(queueItem, message) {
     const guildId = message.guild.id;
     const queue = queues[guildId] || [];
     queues[guildId] = queue;
-    if (!isPlaying(guildId)) {
+    if (queue.length === 0) {
         queue.push(queueItem);
         play(message);
     } else {
@@ -416,49 +412,40 @@ async function queue_List(queueItem, message) {
         message.channel.send(`キューに追加されました\nタイトル: ${queueItem.title}`);
     }
 }
-
-function isPlaying(guildId) {
-    const queue = queues[guildId];
-    return queue && queue.length > 0;
-}
-
 async function play(message) {
     const guildId = message.guild.id;
     const queue = queues[guildId];
     if (!queue || queue.length === 0) {
-        voiceConnections[guildId].disconnect();
-        delete voiceConnections[guildId];
-        delete queues[guildId];
-        delete loopStatus[guildId];
-        delete autoplayStatus[guildId];
-        return;
+        return disconnect(guildId);
     }
     try {
         voiceConnections[guildId] = joinVoiceChannel({
             channelId: message.member.voice.channel.id,
             guildId: message.guild.id,
-            adapterCreator: message.guild.voiceAdapterCreator
-        });  
+            adapterCreator: message.guild.voiceAdapterCreator,
+        });
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
         delete queues[guildId];
         return;
     }
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
-    autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;    
+    autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
     await voiceConnections[guildId].subscribe(player);
     const stream = ytdl(ytdl.getURLVideoID(queue_Now.url), {
         filter: format => format.audioCodec === 'opus',
-        quality: 'highest',
+        quality: 'highestaudio',
         highWaterMark: 64 * 1024 * 1024,
     });
     const resource = createAudioResource(stream, {
         inputType: "webm/opus",
         bitrate: 64,
+        inlineVolume: true
     });
+    resource.volume.setVolume(0.02);
     player.play(resource);
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {
@@ -497,14 +484,15 @@ async function play(message) {
                 play(message);
             } else {
                 setTimeout(() => {
-                    voiceConnections[guildId].disconnect();
-                    delete voiceConnections[guildId];
-                    delete queues[guildId];
-                    delete loopStatus[guildId];
-                    delete autoplayStatus[guildId];
+                    disconnect(guildId)
                 }, 1000);
             }
         }
+    });
+    const connection = getVoiceConnection(guildId);
+    connection.on(VoiceConnectionStatus.Disconnected, () => {
+        disconnect(guildId)
+        connection.destroy();
     });
 }
 
@@ -517,6 +505,13 @@ function formatDuration(duration) {
     } else {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
+}
+function disconnect(guildId) {
+    voiceConnections[guildId].disconnect();
+    delete voiceConnections[guildId];
+    delete queues[guildId];
+    delete loopStatus[guildId];
+    delete autoplayStatus[guildId];
 }
 
 const updateActivity = () => {
