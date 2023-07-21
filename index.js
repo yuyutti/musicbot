@@ -323,6 +323,9 @@ client.on('messageCreate', async (message) => {
             const queue = queues[guildId];
             const VideoURL = queue[0].url
             const NextPlayVideoItem = await NextPlay(VideoURL)
+            if(!NextPlayVideoItem){
+                return message.channel.send("**高確率で発生するエラーを引き当てました!**\n再度スキップコマンドを使用してください!\n何回か連続でエラー出るかもしれないです!")
+            }
             const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
             queue.push(queueItem);
             queue.shift();
@@ -470,13 +473,20 @@ async function play(message) {
             }
             if (queue.length === 1){
                 if(autoplayStatus[guildId]){
-                    const queue = queues[guildId];
-                    const VideoURL = queue[0].url
-                    const NextPlayVideoItem = await NextPlay(VideoURL)
-                    const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
-                    queue.push(queueItem);
-                    queue.shift();
-                    return await play(message);
+                    async function processQueue(message, guildId) {
+                        const queue = queues[guildId];
+                        const VideoURL = queue[0].url
+                        const NextPlayVideoItem = await NextPlay(VideoURL)
+                        if (!NextPlayVideoItem) {
+                            message.channel.send("ちょっとしたエラーが発生したため次の曲の再生までに少し時間がかかる場合があります\n(このメッセージが何度も表示される場合その回数分ちょっとしたエラーが起きてるため不具合ではありません)")
+                            return await processQueue(message, guildId);
+                        }
+                        const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
+                        queue.push(queueItem);
+                        queue.shift();
+                        return await play(message);
+                    }
+                    processQueue(message, guildId)
                 }
             }
             queue.shift()

@@ -77,7 +77,6 @@ async function NextPlay(VideoURL) {
     const matchResult = VideoURL.match(regex);
     const vid = matchResult ? matchResult[1] : null;
     const url = `https://www.youtube.com/watch?v=${vid}`;
-
     try {
     const response = await fetch(url);
     const data = await response.text();
@@ -85,11 +84,17 @@ async function NextPlay(VideoURL) {
     const match = data.match(regex);
         if (match) {
             const responsematchdata = match[1];
-            const parsedData = JSON.parse(responsematchdata);
-            const title = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[0].compactVideoRenderer.title.simpleText;
-            const videoId = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[0].compactVideoRenderer.videoId;
-            const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
-            return { title, videoUrl };
+            const parsedData = await JSON.parse(responsematchdata);
+            const number = getRandomNumber()
+            const title = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[number].compactVideoRenderer.title.simpleText;
+            const videoId = parsedData.contents.twoColumnWatchNextResults.secondaryResults.secondaryResults.results[number].compactVideoRenderer.videoId;
+            if (title === null && videoId === null) {
+                return null
+            }
+            else{
+                const videoUrl = `https://www.youtube.com/watch?v=${videoId}`;
+                return { title, videoUrl };
+            }
         } else {
             return null;
         }
@@ -97,6 +102,10 @@ async function NextPlay(VideoURL) {
         console.log(error);
         return null;
     }
+}
+
+function getRandomNumber() {
+    return Math.floor(Math.random() * (10 - 1 + 1)) + 1;
 }
 
 module.exports = { playlist, NextPlay, search }
