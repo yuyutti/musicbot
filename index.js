@@ -445,7 +445,7 @@ async function play(message) {
         bitrate: 64,
         inlineVolume: true
     });
-    resource.volume.setVolume(0.02);
+    resource.volume.setVolume(0.05);
     player.play(resource);
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {

@@ -83,7 +83,6 @@ async function NextPlay(VideoURL) {
     const data = await response.text();
     const regex = /var ytInitialData = ({[\s\S]*?});/;
     const match = data.match(regex);
-    
         if (match) {
             const responsematchdata = match[1];
             const parsedData = JSON.parse(responsematchdata);
