@@ -602,7 +602,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     }
 });
 client.on('guildCreate', (guild) => {var type = "join";updateActivity();join_left(guild,type,join_left_channel)});
-client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel)});
+client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel);disconnect(guild)});
 client.login(token);
 app.listen(3010)
 
