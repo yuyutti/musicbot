@@ -51,7 +51,7 @@ app.get('/server', async (req,res) => {
 app.get('/queue', async (req, res) => {
     try{
         const queueInfo = await Promise.all(Object.keys(queues).map(async (guildId) => {
-            const guild = await client.cache.get(guildId);
+            const guild = client.guilds.cache.get(guildId)
             const queue = queues[guildId];
             let queuery = {};
             let position = 1;
