@@ -1,7 +1,8 @@
 require('dotenv').config();
+const { youtube_error } = require('./notification')
 const YouTube_API_Key = process.env.YouTube_API_KEY
 
-async function playlist(playlistId) {
+async function playlist(playlistId,youtube_error_channel) {
     try {
         const maxResults = 50;
         let nextPageToken = '';
@@ -52,6 +53,7 @@ async function playlist(playlistId) {
         return { videoUrls, videoTitles, totalResults, mess };
     } catch (error) {
         console.error('Failed to get playlist videos:', error);
+        youtube_error(error,youtube_error_channel)
     }
 }
 
@@ -68,6 +70,7 @@ async function search(searchQuery,maxResults) {
         return { videoUrls, videoTitles, totalResults };
     } catch (error) {
         console.error(error);
+        youtube_error(error,youtube_error_channel)
         return null;
     }
 }
@@ -100,6 +103,7 @@ async function NextPlay(VideoURL) {
         }
     } catch (error) {
         console.log(error);
+        youtube_error(error,youtube_error_channel)
         return null;
     }
 }

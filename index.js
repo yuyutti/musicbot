@@ -2,6 +2,7 @@ const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = requi
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const { playlist, NextPlay, search } = require('./YouTubeAPI');
+const { notice_command, notice_playing, join_left, notice_vc, error, express_error, discordapi_error } = require('./notification')
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -22,15 +23,35 @@ const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
 
+let command_channel, playing_channel, vc_channel, join_left_channel, error_channel, express_error_channel, discordapi_error_channel, playing_error_channel;
+
 let queues = {};
 let loopStatus = {};
 let autoplayStatus = {};
 let voiceConnections = {};
 
+app.get('/server', async (req,res) => {
+    try{
+        const guilds = client.guilds.cache;
+        let servers = {}
+        let position = 1;
+        guilds.forEach(guild => {
+            servers[position] = [guild.name,guild.id]
+            position++;
+        });
+        res.send(servers)
+    }
+    catch(err){
+        console.log(err)
+        express_error(err,express_error_channel)
+        res.status(500).send('Internal Server Error');
+    }
+})
+
 app.get('/queue', async (req, res) => {
     try{
         const queueInfo = await Promise.all(Object.keys(queues).map(async (guildId) => {
-            const guild = client.guilds.cache.get(guildId);
+            const guild = await client.guilds.fetch(guildId);
             const queue = queues[guildId];
             let queuery = {};
             let position = 1;
@@ -52,6 +73,7 @@ app.get('/queue', async (req, res) => {
     }
     catch(err){
         console.log(err)
+        express_error(err,express_error_channel)
         res.status(500).send('Internal Server Error');
     }
 });
@@ -68,6 +90,7 @@ app.get('/vc', (req, res) => {
     }
     catch(err){
         console.log(err)
+        express_error(err,express_error_channel)
         res.status(500).send('Internal Server Error');
     }
 });
@@ -75,17 +98,35 @@ app.get('/vc', (req, res) => {
 client.on('ready', () => {
     updateActivity()
     console.log(`Logged in as ${client.user.tag}`);
+
+    const management_guildId = client.guilds.cache.get('1132198504199098458');
+    command_channel = management_guildId.channels.cache.get('1132332545124606083');
+    playing_channel = management_guildId.channels.cache.get('1132332665597595678');
+    vc_channel = management_guildId.channels.cache.get('1132332617438601306');
+    join_left_channel = management_guildId.channels.cache.get('1132604272534630440');
+    error_channel = management_guildId.channels.cache.get('1132616852254773348');
+    express_error_channel = management_guildId.channels.cache.get('1132604669735211039');
+    discordapi_error_channel = management_guildId.channels.cache.get('1132604715105009745');
+    playing_error_channel = management_guildId.channels.cache.get('1132604753654849577');
+    youtube_error_channel = management_guildId.channels.cache.get('1132338080918016090');
 });
 
 client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
+    notice_command(guildId,message,prefix,command,command_channel)
+
+    if(command === 'guild'){
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        const guild = await client.guilds.fetch(arg);
+        return await message.channel.send(guild.name);
+    }
 
     if (command === 'play' || command === "p") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
-            const playlistItems = await playlist('PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB');
+            const playlistItems = await playlist('PL4fGSI1pDJn4-UIb6RKHdxam-oAUULIGB',youtube_error_channel);
             const guildId = message.guild.id;
             const queue = queues[guildId] || [];
             queues[guildId] = queue;
@@ -107,7 +148,7 @@ client.on('messageCreate', async (message) => {
                 if (arg.includes("list=")) {
                     message.channel.send("loading...");
                     const playlistId = arg.split("list=")[1].split("&")[0];
-                    const playlistItems = await playlist(playlistId);
+                    const playlistItems = await playlist(playlistId,youtube_error_channel);
                     if (playlistItems && playlistItems.videoUrls.length > 0) {
                         const videoCount = playlistItems.totalResults;
                         const fastVideo = playlistItems.videoUrls[0];
@@ -168,7 +209,7 @@ client.on('messageCreate', async (message) => {
             message.channel.send("指定されたURLには対応していません")
         }
         else {
-            const SearchResults = await search(arg,1)
+            const SearchResults = await search(arg,1,youtube_error_channel)
             if(SearchResults.videoTitles.length > 0){
                 const selectedSong = {
                     title: SearchResults.videoTitles[0],
@@ -189,7 +230,7 @@ client.on('messageCreate', async (message) => {
         if(!arg){
             return message.channel.send("キーワードが入力されていません"); 
         }
-        const SearchResults = await search(arg,10)
+        const SearchResults = await search(arg,10,youtube_error_channel)
         if(SearchResults){
             const queueEmbed = new MessageEmbed()
             .setTitle('検索結果')
@@ -203,6 +244,7 @@ client.on('messageCreate', async (message) => {
                 }
             } catch (error) {
                 console.log(error);
+                discordapi_error(error,discordapi_error_channel)
             }
             await message.channel.send({ embeds: [queueEmbed] });
             const filter = (msg) => {
@@ -291,6 +333,7 @@ client.on('messageCreate', async (message) => {
                 }
             } catch (error) {
                 console.log(error);
+                discordapi_error(error,discordapi_error_channel)
             }
             message.channel.send({ embeds: [queueEmbed] });
         }
@@ -322,7 +365,7 @@ client.on('messageCreate', async (message) => {
         if(autoplayStatus[guildId]){
             const queue = queues[guildId];
             const VideoURL = queue[0].url
-            const NextPlayVideoItem = await NextPlay(VideoURL)
+            const NextPlayVideoItem = await NextPlay(VideoURL,youtube_error_channel)
             if(!NextPlayVideoItem){
                 return message.channel.send("**高確率で発生するエラーを引き当てました!**\n再度スキップコマンドを使用してください!\n何回か連続でエラー出るかもしれないです!")
             }
@@ -429,8 +472,7 @@ async function play(message) {
         });
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
-        delete queues[guildId];
-        return;
+        return disconnect(guildId);
     }
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
     autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
@@ -438,6 +480,7 @@ async function play(message) {
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
     await voiceConnections[guildId].subscribe(player);
+    notice_playing(queue_Now,guildId,playing_channel)
     const stream = ytdl(ytdl.getURLVideoID(queue_Now.url), {
         filter: format => format.audioCodec === 'opus',
         quality: 'highestaudio',
@@ -463,6 +506,7 @@ async function play(message) {
                 message.channel.send({ embeds: [embed] });
             } catch (error) {
                 message.channel.send('動画データの取得に失敗しました')
+                discordapi_error(error,discordapi_error_channel)
             }
         }
     });
@@ -476,7 +520,7 @@ async function play(message) {
                     async function processQueue(message, guildId) {
                         const queue = queues[guildId];
                         const VideoURL = queue[0].url
-                        const NextPlayVideoItem = await NextPlay(VideoURL)
+                        const NextPlayVideoItem = await NextPlay(VideoURL,youtube_error_channel)
                         if (!NextPlayVideoItem) {
                             message.channel.send("ちょっとしたエラーが発生したため次の曲の再生までに少し時間がかかる場合があります\n(このメッセージが何度も表示される場合その回数分ちょっとしたエラーが起きてるため不具合ではありません)")
                             return await processQueue(message, guildId);
@@ -500,7 +544,13 @@ async function play(message) {
         }
     });
     const connection = getVoiceConnection(guildId);
+    connection.on(VoiceConnectionStatus.Ready, () => {
+        var type = 'Ready'
+        notice_vc(guildId,type,vc_channel)
+    });
     connection.on(VoiceConnectionStatus.Disconnected, () => {
+        var type = 'Disconnected'
+        notice_vc(guildId,type,vc_channel)
         disconnect(guildId)
         connection.destroy();
     });
@@ -547,14 +597,16 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         }
     }
 });
-client.on('guildCreate', () => {updateActivity()});
-client.on('guildDelete', () => {updateActivity()});
+client.on('guildCreate', (guild) => {var type = "join";updateActivity();join_left(guild,type,join_left_channel)});
+client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel)});
 client.login(token);
 app.listen(3010)
 
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
+    error(error,error_channel) 
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
+    error(reason,error_channel)
 });
