@@ -117,10 +117,11 @@ client.on('messageCreate', async (message) => {
     const guildId = message.guild.id;
     notice_command(guildId,message,prefix,command,command_channel)
 
-    if(command === 'guild'){
+    if(command === 'kick'){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
-        const guild = await client.guilds.fetch(arg);
-        return await message.channel.send(guild.name);
+        if(!message.author.id === '933314562487386122'){ return console.log("kick command is access deny") }
+        if(!arg){ return console.log("arg is not found") }
+        return disconnect(arg)
     }
 
     if (command === 'play' || command === "p") {
@@ -568,11 +569,13 @@ function formatDuration(duration) {
     }
 }
 function disconnect(guildId) {
-    voiceConnections[guildId].disconnect();
-    delete voiceConnections[guildId];
-    delete queues[guildId];
-    delete loopStatus[guildId];
-    delete autoplayStatus[guildId];
+    if (voiceConnections[guildId]) {
+        voiceConnections[guildId].disconnect();
+        delete voiceConnections[guildId];
+    }
+    if (queues[guildId]) {delete queues[guildId];}
+    if (loopStatus[guildId]) {delete loopStatus[guildId];}
+    if (autoplayStatus[guildId]) {delete autoplayStatus[guildId];}
 }
 
 const updateActivity = () => {
