@@ -473,7 +473,7 @@ async function play(message) {
         });
     } catch (error) {
         message.channel.send('VCに参加してからコマンドを実行してください');
-        return disconnect(guildId);
+        return delete queues[guildId];
     }
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
     autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
