@@ -2,7 +2,7 @@ const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = requi
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const { playlist, NextPlay, search } = require('./YouTubeAPI');
-const { notice_command, notice_playing, join_left, notice_vc, error, express_error, discordapi_error } = require('./notification')
+const { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error } = require('./notification')
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -36,7 +36,7 @@ app.get('/server', async (req,res) => {
         let servers = {}
         let position = 1;
         guilds.forEach(guild => {
-            servers[position] = [guild.name,guild.id]
+            servers[position] = { ServerName: guild.name, Language: guild.preferredLocale, memberCount: guild.memberCount, guildId: guild.id }
             position++;
         });
         res.send(servers)
@@ -359,8 +359,7 @@ client.on('messageCreate', async (message) => {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         const queue = queues[guildId];
         if(loopStatus[guildId]){
-            message.channel.send("リピート再生が有効状態のためスキップは利用できません");
-            return;
+            return message.channel.send("リピート再生が有効状態のためスキップは利用できません");
         }
         if(autoplayStatus[guildId]){
             const queue = queues[guildId];
@@ -372,27 +371,29 @@ client.on('messageCreate', async (message) => {
             const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
             queue.push(queueItem);
             queue.shift();
-            return await play(message);
+            return play(message);
         }
-        if(!arg){
-            queue.shift();
-            play(message);
-            return;
-        }
-        if (queue && queue.length > 1) {
+        if (arg) {
             if(/^\d+$/.test(arg)){
                 const int = parseInt(arg, 10)-1
+                if(int > queue.length){
+                    return message.channel.send(`${int+1}番目までキューに曲が追加されていません`)
+                }
                 for (let i = 0; i < int; i++) {
                     queue.shift();
                 }
-                play(message);
-                return;
+                return play(message);
             }
             else{
-                message.channel.send("整数で入力してください")
+                return message.channel.send("整数で入力してください")
             }
-        } else {
-            message.channel.send("キューに曲が追加されていません");
+        }
+        if(queue && queue.length > 1){
+            queue.shift();
+            return play(message);
+        }
+        else {
+            return message.channel.send("キューに曲が追加されていません");
         }
     }
 
@@ -604,9 +605,9 @@ app.listen(3010)
 
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
-    error(error,error_channel) 
+    error_log(error,error_channel)
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
-    error(reason,error_channel)
+    error_log(reason,error_channel)
 });

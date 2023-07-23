@@ -41,20 +41,20 @@ async function join_left(guild,type,join_left_channel) {
     }
 }
 
-async function error(error,error_channel) {
-    return await error_channel.send(error);
+async function error_log(error,error_channel) {
+    return await error_channel.send(`Error: ${error}`);
 }
 
 async function express_error(err,express_error_channel) {
-    return await express_error_channel.send(err);
+    return await express_error_channel.send(`ExpressError: ${err}`);
 }
 
 async function discordapi_error(error,discordapi_error_channel) {
-    return await discordapi_error_channel.send(error);
+    return await discordapi_error_channel.send(`DiscordAPIError: ${error}`);
 }
 
 async function youtube_error(error,youtube_error_channel) {
-    return await youtube_error_channel.send(error);
+    return await youtube_error_channel.send(`YouTubeAPIError: ${error}`);
 }
 
-module.exports = { notice_command, notice_playing, join_left, notice_vc, error, express_error, discordapi_error, youtube_error };
+module.exports = { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error, youtube_error };
