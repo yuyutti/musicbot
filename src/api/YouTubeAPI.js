@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { youtube_error } = require('./notification')
+const { youtube_error } = require('../notification')
 const YouTube_API_Key = process.env.YouTube_API_KEY
 
 async function playlist(playlistId,youtube_error_channel) {
@@ -22,11 +22,8 @@ async function playlist(playlistId,youtube_error_channel) {
             const videos = data.items;
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
-
-            const videoCount = totalResults;
-            const fastVideotitle = videoTitles[0];
-            const mess = `ミックスリストを${videoCount}曲読み込みました\nYouTubeの仕様によりミックスリストではユーザーによって異なるリストが生成されます\nミックスリストをキューに追加しますか？\n最初の曲: ${fastVideotitle}\nミックスリストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
-            return { videoUrls, videoTitles, totalResults, mess };
+            mix = true
+            return { videoUrls, videoTitles, totalResults, mix };
         }
 
         do {
@@ -42,15 +39,8 @@ async function playlist(playlistId,youtube_error_channel) {
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
             iterations++;
         } while (nextPageToken && iterations < 20);
-
-        const videoCount = totalResults;
-        const fastVideotitle = videoTitles[0];
-        let warning = ''
-        if(videoCount > 1000){
-            warning = "\n1度に取得できる最大曲数は1000曲です。"
-        }
-        const mess = `再生リストから${videoCount}曲が見つかりました。${warning}\n最初の曲: ${fastVideotitle}\n再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」`
-        return { videoUrls, videoTitles, totalResults, mess };
+        mix = false
+        return { videoUrls, videoTitles, totalResults, mix };
     } catch (error) {
         console.error('Failed to get playlist videos:', error);
         youtube_error(error,youtube_error_channel)

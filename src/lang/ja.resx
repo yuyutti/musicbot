@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+    <play>
+        <data name="not arg">
+            <value>日本のトレンド曲を再生します</value>
+        </data>
+        <data name="list fast queue">
+            <value>最初の曲をキューに追加しました</value>
+        </data>
+        <data name="list all queue - 1">
+            <value></value>
+        </data>
+            <data name="list all queue - 2">
+            <value>曲をすべてキューに追加しました</value>
+        </data>
+        <data name="interact timeout">
+            <value>インタラクトがなかったためタイムアウトしました 最初の曲を再生します</value>
+        </data>
+        <data name="not url">
+            <value>指定されたURLには対応していません</value>
+        </data>
+        <data name="not video">
+            <value>動画が見つかりませんでした</value>
+        </data>
+    </play>
+    <playsearch>
+        <data name="not input keyword">
+            <value>キーワードが入力されていません</value>
+        </data>
+        <data name="search result">
+            <value>検索結果</value>
+        </data>
+        <data name="input to plz song number">
+            <value>追加したい曲番号を送信してください</value>
+        </data>
+        <data name="playsearch all queue">
+            <value>全ての曲をキューに追加しました</value>
+        </data>
+        <data name="correct number submit plz">
+            <value>正しい曲番号を送信してください</value>
+        </data>
+        <data name="submit timeout">
+            <value>一定期間入力がないためタイムアウトしました</value>
+        </data>
+        <data name="match video not found">
+            <value>一致する動画が見つかりませんでした</value>
+        </data>
+    </playsearch>
+    <queue>
+        <data name="queue">
+            <value>キュー</value>
+        </data>
+        <data name="now is not queue song">
+            <value>現在キューに曲が追加されていません</value>
+        </data>
+        <data name="now is queue the following songs">
+            <value>現在のキューには以下の曲が入っています</value>
+        </data>
+        <data name="playing">
+            <value>再生中</value>
+        </data>
+    </queue>
+    <stop>
+        <data name="playing song is stopd">
+            <value>再生を停止しました</value>
+        </data>
+        <data name="now playing song not found">
+            <value>現在再生中の曲はありません</value>
+        </data>
+        <data name="dont playing">
+            <value>現在再生中ではありません</value>
+        </data>
+    </stop>
+    <skip>
+        <data name="loop status is true bat not skip">
+            <value>リピート再生が有効状態のためスキップは利用できません</value>
+        </data>
+        <data name="youtube api not found">
+            <value>YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します</value>
+        </data>
+        <data name="queue not found -1">
+            <value></value>
+        </data>
+        <data name="queue not found -2">
+            <value>番目までキューに曲が追加されていません</value>
+        </data>
+        <data name="input integer plz">
+            <value>整数で入力してください</value>
+        </data>
+        <data name="queue not found">
+            <value>キューに曲が追加されていません</value>
+        </data>
+        <data name="now playing">
+            <value>現在再生中の曲です</value>
+        </data>
+    </skip>
+    <loop>
+        <data name="vc joind execution command">
+            <value>VCに参加してからコマンドを実行してください</value>
+        </data>
+        <data name="loop treu">
+            <value>リピート再生が有効になりました</value>
+        </data>
+        <data name="loop false">
+            <value>リピート再生が無効になりました</value>
+        </data>
+    </loop>
+    <autoplay>
+        <data name="vc joind execution command">
+            <value>VCに参加してからコマンドを実行してください</value>
+        </data>
+        <data name="autoplay true">
+            <value>自動再生が有効になりました</value>
+        </data>
+        <data name="autoplay false">
+            <value>自動再生が無効になりました</value>
+        </data>
+    </autoplay>
+    <help>
+        <data name="treatment">
+            <value>使い方</value>
+        </data>
+        <data name="command prefix -1">
+            <value>コマンドプレフィックスは「</value>
+        </data>
+        <data name="command prefix -2">
+            <value>」です</value>
+        </data>
+        <data name="command">
+            <value>コマンド</value>
+        </data>
+        <data name="discription">
+            <value>説明</value>
+        </data>
+        <data name="play -1">
+            <value>音楽を再生するためのコマンドです</value>
+        </data>
+        <data name="play -2">
+            <value>コマンド単体で実行すると日本のトレンド曲を自動再生します</value>
+        </data>
+        <data name="playsearch">
+            <value>音楽を再生するためのコマンドです、検索上位10を表示します</value>
+        </data>
+        <data name="command use">
+            <value>コマンドの使用例</value>
+        </data>
+        <data name="keyword">
+            <value>キーワード</value>
+        </data>
+        <data name="queue">
+            <value>現在の再生待機リストを確認できます</value>
+        </data>
+        <data name="skip -1">
+            <value>現在再生中の曲を停止してVCから切断します(キューもクリアされます)</value>
+        </data>
+        <data name="skip -2">
+            <value>キューが入っていた場合次の曲を再生します</value>
+        </data>
+        <data name="skip -3">
+            <value>再生待機リストの曲順を指定するとその曲までスキップします</value>
+        </data>
+        <data name="skip use -1">
+            <value>次の曲にスキップしたい場合 例:</value>
+        </data>
+        <data name="skip use -2">
+            <value>15曲目の曲にスキップしたい場合 例:</value>
+        </data>
+        <data name="loop">
+            <value>リピート再生を有効化、無効化します デフォルト: 無効</value>
+        </data>
+        <data name="auto play">
+            <value>自動再生を有効化、無効化します デフォルト: 無効</value>
+        </data>
+        <data name="short commands -1">
+            <value>短縮コマンドに関して</value>
+        </data>
+        <data name="short commands -2">
+            <value>短縮コマンドが設定されているコマンドは、短縮コマンドでも同様の動作を行うため使用して頂いて問題ありません</value>
+        </data>
+    </help>
+    <queue_list>
+        <data name="queue push">
+            <value>キューに追加されました</value>
+        </data>
+        <data name="queue title">
+            <value>タイトル: </value>
+        </data>
+    </queue_list>
+    <play_>
+        <data name="not joind vc">
+            <value>VCに参加してからコマンドを実行してください</value>
+        </data>
+        <data name="Duration">
+            <value>時間</value>
+        </data>
+        <data name="get video data is dont">
+            <value>動画データの取得に失敗しました</value>
+        </data>
+        <data name="youtube api not found">
+            <value>YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します</value>
+        </data>
+    </play_>
+    <youtubeapi>
+        <data name="mixlist">
+            <value>ミックスリストを</value>
+        </data>
+        <data name="mixlist">
+            <value>曲読み込みました</value>
+        </data>
+        <data name="mixlist">
+            <value>YouTubeの仕様によりミックスリストではユーザーによって異なるリストが生成されます</value>
+        </data>
+        <data name="mixlist">
+            <value>ミックスリストをキューに追加しますか？</value>
+        </data>
+        <data name="mixlist">
+            <value>最初の曲: </value>
+        </data>
+        <data name="mixlist">
+            <value>ミックスリストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」</value>
+        </data>
+        <data name="playlist">
+            <value>再生リストから</value>
+        </data>
+        <data name="playlist">
+            <value>曲が見つかりました</value>
+        </data>
+        <data name="playlist">
+            <value>最初の曲: </value>
+        </data>
+        <data name="playlist">
+            <value>再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」</value>
+        </data>
+    </youtubeapi>
+</root>

@@ -1,8 +1,11 @@
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-const { playlist, NextPlay, search } = require('./YouTubeAPI');
-const { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error } = require('./notification')
+const { playlist, NextPlay, search } = require('./src/api/YouTubeAPI');
+const { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error } = require('./src/notification');
+const resxData = require('./src/resx-parse');
+const fs = require('fs');
+const path = require('path');
 const express = require('express')
 const app = express()
 require('dotenv').config();
@@ -23,12 +26,18 @@ const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
 
+const filePath = path.join(__dirname, '/data/guildLanguage.json');
+
 let command_channel, playing_channel, vc_channel, join_left_channel, error_channel, express_error_channel, discordapi_error_channel, playing_error_channel;
 
 let queues = {};
 let loopStatus = {};
 let autoplayStatus = {};
 let voiceConnections = {};
+
+app.get('/lang', async (req,res) => {
+    res.send(resxData)
+})
 
 app.get('/server', async (req,res) => {
     try{
@@ -109,6 +118,24 @@ client.on('ready', () => {
     discordapi_error_channel = management_guildId.channels.cache.get('1132604715105009745');
     playing_error_channel = management_guildId.channels.cache.get('1132604753654849577');
     youtube_error_channel = management_guildId.channels.cache.get('1132338080918016090');
+
+    let serverLocales = {};
+    const guilds = client.guilds.cache;
+    guilds.forEach(guild => {
+        if (guild.preferredLocale) {
+            serverLocales[guild.id] = guild.preferredLocale;
+        }
+        else {
+            delete serverLocales[guild.id];
+        }
+    });
+    fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
+        if (err) {
+            console.error('guildLanguageの保存中にエラーが発生しました:', err);
+        } else {
+            console.log('guildLanguageが正常に保存されました');
+        }
+    });
 });
 
 client.on('messageCreate', async (message) => {
@@ -116,6 +143,12 @@ client.on('messageCreate', async (message) => {
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
     notice_command(guildId,message,prefix,command,command_channel)
+
+    const gildLang = await guildLanguage()
+    let lang = gildLang[guildId]
+    if (!(lang in resxData)){
+        lang = 'en-US';
+    }
 
     if(command === 'kick'){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
@@ -135,7 +168,7 @@ client.on('messageCreate', async (message) => {
             const fastVideotitle = playlistItems.videoTitles[0];
             const queueItem = { url: fastVideo, title: fastVideotitle }
             await queue_List(queueItem, message);
-            await message.channel.send("日本のトレンド曲を再生します");
+            await message.channel.send(`${resxData[lang].root.play[0].data[0].value}`);
             for (let i = 1; i < playlistItems.videoUrls.length; i++) {
                 const url = playlistItems.videoUrls[i];
                 const title = playlistItems.videoTitles[i]
@@ -154,7 +187,16 @@ client.on('messageCreate', async (message) => {
                         const videoCount = playlistItems.totalResults;
                         const fastVideo = playlistItems.videoUrls[0];
                         const fastVideotitle = playlistItems.videoTitles[0];
-                        message.channel.send({ content: playlistItems.mess, components: [row] });
+                        const resxdata = resxData[lang].root.youtubeapi[0]
+                        let mess
+                        if(playlistItems.mix === "true"){
+                            mess = `${resxdata.data[0].value}${videoCount}${resxdata.data[1].value}\n${resxdata.data[2].value}\n${resxdata.data[3].value}\n${resxdata.data[4].value}${fastVideotitle}\n${resxdata.data[5].value}`
+                        }
+                        else{
+                            mess = `${resxdata.data[6].value}${videoCount}${resxdata.data[7].value}\n${resxdata.data[8].value}${fastVideotitle}\n${resxdata.data[9].value}`
+                        }
+                        
+                        message.channel.send({ content: mess, components: [row] });
                         const filter = (interaction) => interaction.user.id === message.author.id;
                         message.channel.awaitMessageComponent({ filter, time: 30000 })
                         .then(async (interaction) => {
@@ -164,12 +206,7 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'confirm') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 await queue_List(queueItem, message);
-                                if(interaction.locale === 'ja'){
-                                    await interaction.reply(`最初の曲をキューに追加しました`);
-                                }
-                                else{
-                                    await interaction.reply(`Add first song to queue!`);
-                                }
+                                    await interaction.reply(`${resxData[lang].root.play[0].data[1].value}`);
                                 for (let i = 1; i < playlistItems.videoUrls.length; i++) {
                                     const url = playlistItems.videoUrls[i];
                                     const title = playlistItems.videoTitles[i]
@@ -180,12 +217,7 @@ client.on('messageCreate', async (message) => {
                                 if (videoCount > 1000) {
                                     limitedVideoCount = 1000;
                                 }
-                                if(interaction.locale === 'ja'){
-                                    return message.channel.send(`${limitedVideoCount}曲をすべてキューに追加しました`);
-                                }
-                                else{
-                                    return message.channel.send(`All ${limitedVideoCount} songs have been added to the queue!`);
-                                }
+                                message.channel.send(`${resxData[lang].root.play[0].data[2].value} ${limitedVideoCount} ${resxData[lang].root.play[0].data[3].value}`);
                             }
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
@@ -194,7 +226,7 @@ client.on('messageCreate', async (message) => {
                             }
                         })
                         .catch(async() => {
-                            message.channel.send("インタラクトがなかったためタイムアウトしました\n最初の曲を再生します");
+                            message.channel.send(`${resxData[lang].root.play[0].data[4].value}`);
                             const queueItem = { url: fastVideo, title: fastVideotitle }
                             await queue_List(queueItem, message);
                         })
@@ -207,7 +239,7 @@ client.on('messageCreate', async (message) => {
                 queue_List(queueItem,message)
                 return;
             }
-            message.channel.send("指定されたURLには対応していません")
+            message.channel.send(`${resxData[lang].root.play[0].data[5].value}`)
         }
         else {
             const SearchResults = await search(arg,1,youtube_error_channel)
@@ -220,7 +252,7 @@ client.on('messageCreate', async (message) => {
                 queue_List(queueItem,message)
             }
             else{
-                message.channel.send("動画が見つかりませんでした")
+                message.channel.send(`${resxData[lang].root.play[0].data[6].value}`)
             }
         }
     }
@@ -229,13 +261,13 @@ client.on('messageCreate', async (message) => {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         const commandAuthor = message.author;
         if(!arg){
-            return message.channel.send("キーワードが入力されていません"); 
+            return message.channel.send(`${resxData[lang].root.playsearch[0].data[0].value}`); 
         }
         const SearchResults = await search(arg,10,youtube_error_channel)
         if(SearchResults){
             const queueEmbed = new MessageEmbed()
-            .setTitle('検索結果')
-            .setDescription('追加したい曲番号を送信してください')
+            .setTitle(`${resxData[lang].root.playsearch[0].data[1].value}`)
+            .setDescription(`${resxData[lang].root.playsearch[0].data[2].value}`)
             .setColor('RED');
             try {
                 for (let i = 0; i < SearchResults.videoTitles.length; i++) {
@@ -275,7 +307,7 @@ client.on('messageCreate', async (message) => {
                         const queueItem = { url: selectedSong.url, title: selectedSong.title }
                         queue.push(queueItem)
                     }
-                    msg.channel.send('全ての曲をキューに追加しました。');
+                    msg.channel.send(`${resxData[lang].root.playsearch[0].data[3].value}`);
                     return collector.stop();
                 }
 
@@ -289,17 +321,17 @@ client.on('messageCreate', async (message) => {
                     queue_List(queueItem,message)
                     collector.stop();
                 } else {
-                    msg.channel.send('正しい曲番号を送信してください');
+                    msg.channel.send(`${resxData[lang].root.playsearch[0].data[4].value}`);
                 }
             });
             collector.on('end', (collected, reason) => {
                 if (reason === 'time') {
-                    message.channel.send('入力がタイムアウトしました');
+                    message.channel.send(`${resxData[lang].root.playsearch[0].data[5].value}`);
                 }
             });
         }
         else{
-            return message.channel.send("一致する動画が見つかりませんでした")
+            return message.channel.send(`${resxData[lang].root.playsearch[0].data[6].value}`)
         }
     }
 
@@ -307,21 +339,21 @@ client.on('messageCreate', async (message) => {
         const queue = queues[guildId];
         if (!queue || queue.length === 0) {
             const queueEmbed = new MessageEmbed()
-                .setTitle('キュー')
-                .setDescription('現在キューに曲はありません')
+                .setTitle(`${resxData[lang].root.queue[0].data[0].value}`)
+                .setDescription(`${resxData[lang].root.queue[0].data[1].value}`)
                 .setColor('RED');
             message.channel.send({ embeds: [queueEmbed] });
         } else {
             const queueEmbed = new MessageEmbed()
-                .setTitle('キュー')
-                .setDescription('現在のキューには以下の曲が入っています')
+                .setTitle(`${resxData[lang].root.queue[0].data[0].value}`)
+                .setDescription(`${resxData[lang].root.queue[0].data[2].value}`)
                 .setColor('RED');
                 
             let position = 1;
             try {
                 for (let i = 0; i < queue.length; i++) {
                     const title = queue[i].title;
-                    const queueField = i === 0 ? { name: "再生中", value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
+                    const queueField = i === 0 ? { name: `${resxData[lang].root.queue[0].data[3].value}`, value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
                     queueEmbed.addFields(queueField);
                     position++;
                     if ((i + 1) % 25 === 0) {
@@ -346,26 +378,26 @@ client.on('messageCreate', async (message) => {
             if (voiceGuildId === guildId) {
                 try {
                     disconnect(guildId)
-                    return message.channel.send("再生を停止しました");
+                    return message.channel.send(`${resxData[lang].root.stop[0].data[0].value}`);
                 }
                 catch(err) {
-                    return message.channel.send("現在再生中の曲はありません");
+                    return message.channel.send(`${resxData[lang].root.stop[0].data[1].value}`);
                 }
             }
         }
-        return message.channel.send("現在再生中ではありません");
+        return message.channel.send(`${resxData[lang].root.stop[0].data[2].value}`);
     }
 
     if (command === "skip" || command === "s") {
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         const queue = queues[guildId];
         if(loopStatus[guildId]){
-            return message.channel.send("リピート再生が有効状態のためスキップは利用できません");
+            return message.channel.send(`${resxData[lang].root.skip[0].data[0].value}`);
         }
         if(autoplayStatus[guildId]){
             const queueItem = await processQueue(message, guildId)
             if(!queueItem){
-                await message.channel.send("YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します。")
+                await message.channel.send(`${resxData[lang].root.skip[0].data[1].value}`)
                 await disconnect(guildId)
             }
             queue.push(queueItem);
@@ -375,8 +407,13 @@ client.on('messageCreate', async (message) => {
         if (arg) {
             if(/^\d+$/.test(arg)){
                 const int = parseInt(arg, 10)-1
+                if(int < 2){ return message.channel.send(`${resxData[lang].root.skip[0].data[6].value}`) }
                 if(int > queue.length){
-                    return message.channel.send(`${int+1}番目までキューに曲が追加されていません`)
+                    let en_num = resxData[lang].root.skip[0].data[3].value
+                    if(lang === "en-US"){
+                        if(int+1 === 3){ en_num = resxData[lang].root.skip[0].data[8].value }
+                    }
+                    return message.channel.send(`${resxData[lang].root.skip[0].data[2].value}${int+1}${en_num}`)
                 }
                 for (let i = 0; i < int; i++) {
                     queue.shift();
@@ -384,7 +421,7 @@ client.on('messageCreate', async (message) => {
                 return play(message);
             }
             else{
-                return message.channel.send("整数で入力してください")
+                return message.channel.send(`${resxData[lang].root.skip[0].data[4].value}`)
             }
         }
         if(queue && queue.length > 1){
@@ -392,54 +429,54 @@ client.on('messageCreate', async (message) => {
             return play(message);
         }
         else {
-            return message.channel.send("キューに曲が追加されていません");
+            return message.channel.send(`${resxData[lang].root.skip[0].data[5].value}`);
         }
     }
 
     if (command === "loop") {
         if(!voiceConnections[guildId]){
-            return message.channel.send("VCに参加してからコマンドを実行してください");
+            return message.channel.send(`${resxData[lang].root.loop[0].data[0].value}`);
         }
         if(!loopStatus[guildId]){
             loopStatus[guildId] = true
-            message.channel.send("リピート再生が有効になりました");
+            message.channel.send(`${resxData[lang].root.loop[0].data[1].value}`);
         }
         else{
             loopStatus[guildId] = false
-            message.channel.send("リピート再生が無効になりました");
+            message.channel.send(`${resxData[lang].root.loop[0].data[2].value}`);
         }
     }
 
     if (command === "autoplay" | command === "auto" | command === "ap") {
         if(!voiceConnections[guildId]){
-            return message.channel.send("VCに参加してからコマンドを実行してください");
+            return message.channel.send(`${resxData[lang].root.autoplay[0].data[0].value}`);
         }
         if(!autoplayStatus[guildId]){
             autoplayStatus[guildId] = true
-            message.channel.send("自動再生が有効になりました");
+            message.channel.send(`${resxData[lang].root.autoplay[0].data[1].value}`);
         }
         else{
             autoplayStatus[guildId] = false
-            message.channel.send("自動再生が無効になりました");
+            message.channel.send(`${resxData[lang].root.autoplay[0].data[2].value}`);
         }
     }
 
     if (command === "help") {
         const helpEmbed = new MessageEmbed()
-            .setTitle('使い方')
-            .setDescription(`コマンドプレフィックスは「${prefix}」です`)
+            .setTitle(`${resxData[lang].root.help[0].data[0].value}`)
+            .setDescription(`${resxData[lang].root.help[0].data[1].value}${prefix}${resxData[lang].root.help[0].data[2].value}`)
             .addFields(
-                { name: `コマンド`, value: `説明` },
-                { name: `${prefix}play, ${prefix}p`, value: `音楽を再生するためのコマンドです\nコマンド単体で実行すると日本のトレンド曲を自動再生します` },
-                { name: `${prefix}playsearch, ${prefix}ps`, value: `音楽を再生するためのコマンドです、検索上位10を表示します` },
-                { name: `${prefix}play, ${prefix}playsearchコマンドの使用例`, value: `${prefix}play <URL or キーワード>\n${prefix}playsearch <キーワード>` },
-                { name: `${prefix}queue, ${prefix}q`, value: `現在の再生待機リストを確認できます` },
-                { name: `${prefix}stop, ${prefix}dc`, value: `現在再生中の曲を停止してVCから切断します(キューもクリアされます)` },
-                { name: `${prefix}skip, ${prefix}s`, value: `キューが入っていた場合次の曲を再生します\n再生待機リストの曲順を指定するとその曲までスキップします` },
-                { name: `${prefix}skipコマンドの使用例`, value: `次の曲にスキップしたい場合 例: ${prefix}skip\n15曲目の曲にスキップしたい場合 例: ${prefix}skip 15` },
-                { name: `${prefix}loop`, value: `リピート再生を有効化、無効化します デフォルト: 無効` },
-                { name: `${prefix}autoplay, ${prefix}auto, ${prefix}ap`, value: `自動再生を有効化、無効化します デフォルト: 無効` },
-                { name: `短縮コマンドに関して`, value: `短縮コマンドが設定されているコマンドは、短縮コマンドでも同様の動作を行うため使用して頂いて問題ありません` },
+                { name: `${resxData[lang].root.help[0].data[3].value}`, value: `${resxData[lang].root.help[0].data[4].value}` },
+                { name: `${prefix}play, ${prefix}p`, value: `${resxData[lang].root.help[0].data[5].value}\n${resxData[lang].root.help[0].data[6].value}` },
+                { name: `${prefix}playsearch, ${prefix}ps`, value: `${resxData[lang].root.help[0].data[7].value}` },
+                { name: `${prefix}play, ${prefix}playsearch${resxData[lang].root.help[0].data[8].value}`, value: `${prefix}play <URL or ${resxData[lang].root.help[0].data[9].value}>\n${prefix}playsearch <${resxData[lang].root.help[0].data[9].value}>` },
+                { name: `${prefix}queue, ${prefix}q`, value: `${resxData[lang].root.help[0].data[10].value}` },
+                { name: `${prefix}stop, ${prefix}dc`, value: `${resxData[lang].root.help[0].data[11].value}` },
+                { name: `${prefix}skip, ${prefix}s`, value: `${resxData[lang].root.help[0].data[12].value}\n${resxData[lang].root.help[0].data[13].value}` },
+                { name: `${prefix}skip${resxData[lang].root.help[0].data[8].value}`, value: `${resxData[lang].root.help[0].data[14].value} ${prefix}skip\n${resxData[lang].root.help[0].data[15].value} ${prefix}skip 15` },
+                { name: `${prefix}loop`, value: `${resxData[lang].root.help[0].data[16].value}` },
+                { name: `${prefix}autoplay, ${prefix}auto, ${prefix}ap`, value: `${resxData[lang].root.help[0].data[17].value}` },
+                { name: `${resxData[lang].root.help[0].data[18].value}`, value: `${resxData[lang].root.help[0].data[19].value}` },
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });
@@ -450,17 +487,27 @@ async function queue_List(queueItem, message) {
     const guildId = message.guild.id;
     const queue = queues[guildId] || [];
     queues[guildId] = queue;
+    const gildLang = await guildLanguage()
+    let lang = gildLang[guildId]
+    if (!(lang in resxData)){
+        lang = 'en-US';
+    }
     if (queue.length === 0) {
         queue.push(queueItem);
         play(message);
     } else {
         queue.push(queueItem);
-        message.channel.send(`キューに追加されました\nタイトル: ${queueItem.title}`);
+        message.channel.send(`${resxData[lang].root.queue_list[0].data[0].value}\n${resxData[lang].root.queue_list[0].data[1].value}${queueItem.title}`);
     }
 }
 async function play(message) {
     const guildId = message.guild.id;
     const queue = queues[guildId];
+    const gildLang = await guildLanguage()
+    let lang = gildLang[guildId]
+    if (!(lang in resxData)){
+        lang = 'en-US';
+    }
     if (!queue || queue.length === 0) {
         return disconnect(guildId);
     }
@@ -471,7 +518,7 @@ async function play(message) {
             adapterCreator: message.guild.voiceAdapterCreator,
         });
     } catch (error) {
-        message.channel.send('VCに参加してからコマンドを実行してください');
+        message.channel.send(`${resxData[lang].root.play_[0].data[0].value}`);
         return delete queues[guildId];
     }
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
@@ -501,11 +548,11 @@ async function play(message) {
                 const duration = info.videoDetails.lengthSeconds;
                 const embed = new MessageEmbed()
                     .setTitle(`:musical_note: **Playing Now : ${title}**`)
-                    .setDescription(`:alarm_clock: **Duration : ${formatDuration(duration)}**`)
+                    .setDescription(`:alarm_clock: **${resxData[lang].root.play_[0].data[1].value} : ${formatDuration(duration)}**`)
                     .setColor('RED');
                 message.channel.send({ embeds: [embed] });
             } catch (error) {
-                message.channel.send('動画データの取得に失敗しました')
+                message.channel.send(`${resxData[lang].root.play_[0].data[2].value}`)
                 discordapi_error(error,discordapi_error_channel)
             }
         }
@@ -519,7 +566,7 @@ async function play(message) {
                 if(autoplayStatus[guildId]){
                     const queueItem = await processQueue(message, guildId)
                     if(!queueItem){
-                        await message.channel.send("YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します。")
+                        await message.channel.send(`${resxData[lang].root.play_[0].data[3].value}`)
                         await disconnect(guildId)
                     }
                     queue.push(queueItem);
@@ -575,6 +622,16 @@ function formatDuration(duration) {
         return `${hours}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
     } else {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+    }
+}
+function guildLanguage() {
+    try {
+        const data = fs.readFileSync(filePath, 'utf-8');
+        return JSON.parse(data);
+    }
+    catch (err) {
+        console.error('ファイルの読み込み中にエラーが発生しました:', err);
+        return {};
     }
 }
 async function disconnect(guildId) {
