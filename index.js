@@ -363,16 +363,14 @@ client.on('messageCreate', async (message) => {
             return message.channel.send("リピート再生が有効状態のためスキップは利用できません");
         }
         if(autoplayStatus[guildId]){
-            const queue = queues[guildId];
-            const VideoURL = queue[0].url
-            const NextPlayVideoItem = await NextPlay(VideoURL,youtube_error_channel)
-            if(!NextPlayVideoItem){
-                return message.channel.send("**高確率で発生するエラーを引き当てました!**\n再度スキップコマンドを使用してください!\n何回か連続でエラー出るかもしれないです!")
+            const queueItem = await processQueue(message, guildId)
+            if(!queueItem){
+                await message.channel.send("YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します。")
+                await disconnect(guildId)
             }
-            const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
             queue.push(queueItem);
             queue.shift();
-            return play(message);
+            return await play(message);
         }
         if (arg) {
             if(/^\d+$/.test(arg)){
@@ -519,20 +517,14 @@ async function play(message) {
             }
             if (queue.length === 1){
                 if(autoplayStatus[guildId]){
-                    async function processQueue(message, guildId) {
-                        const queue = queues[guildId];
-                        const VideoURL = queue[0].url
-                        const NextPlayVideoItem = await NextPlay(VideoURL,youtube_error_channel)
-                        if (!NextPlayVideoItem) {
-                            message.channel.send("ちょっとしたエラーが発生したため次の曲の再生までに少し時間がかかる場合があります\n(このメッセージが何度も表示される場合その回数分ちょっとしたエラーが起きてるため不具合ではありません)")
-                            return await processQueue(message, guildId);
-                        }
-                        const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
-                        queue.push(queueItem);
-                        queue.shift();
-                        return await play(message);
+                    const queueItem = await processQueue(message, guildId)
+                    if(!queueItem){
+                        await message.channel.send("YouTubeAPIが期限内に応答しなかったため自動再生を継続することがでないため再生を終了します。")
+                        await disconnect(guildId)
                     }
-                    processQueue(message, guildId)
+                    queue.push(queueItem);
+                    queue.shift();
+                    return await play(message);
                 }
             }
             queue.shift()
@@ -550,12 +542,29 @@ async function play(message) {
         var type = 'Ready'
         notice_vc(guildId,type,vc_channel)
     });
-    connection.on(VoiceConnectionStatus.Disconnected, () => {
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
         var type = 'Disconnected'
         notice_vc(guildId,type,vc_channel)
-        disconnect(guildId)
+        await disconnect(guildId)
         connection.destroy();
     });
+}
+
+async function processQueue(message, guildId) {
+    const queue = queues[guildId];
+    const VideoURL = queue[0].url;
+    let retryCount = 0;
+    while (retryCount < 10) {
+        const NextPlayVideoItem = await NextPlay(VideoURL,youtube_error_channel)
+        if (NextPlayVideoItem) {
+            const queueItem = { url: NextPlayVideoItem.videoUrl, title: NextPlayVideoItem.title }
+            return queueItem
+        }
+        else{
+            retryCount++;
+        }
+    }
+    return null;
 }
 
 function formatDuration(duration) {
@@ -568,9 +577,9 @@ function formatDuration(duration) {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 }
-function disconnect(guildId) {
+async function disconnect(guildId) {
     if (voiceConnections[guildId]) {
-        voiceConnections[guildId].disconnect();
+        await voiceConnections[guildId].disconnect();
         delete voiceConnections[guildId];
     }
     if (queues[guildId]) {delete queues[guildId];}
