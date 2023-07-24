@@ -1,3 +1,6 @@
+// TODO list
+// ・queueコマンド時embedを1ずつ送信し前後のページへ行きたいときはインタラクトボタンを押す
+
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
@@ -89,10 +92,13 @@ app.get('/queue', async (req, res) => {
 app.get('/vc', (req, res) => {
     try{
         const serverInfo = Object.keys(voiceConnections).map(guildId => {
-        const guild = client.guilds.cache.get(guildId);
+            const guild = client.guilds.cache.get(guildId);
+            const botUser = guild.members.cache.get(client.user.id);
+            const vcMembers = botUser.voice.channel.members.size;
             return {
+                name: guild ? guild.name : "Unknown Guild",
                 id: guildId,
-                name: guild ? guild.name : "Unknown Guild"
+                vcMembers: vcMembers
             };
         });
     res.send(serverInfo);
