@@ -1,6 +1,33 @@
 require('dotenv').config();
 const { youtube_error } = require('../notification')
-const YouTube_API_Key = process.env.YouTube_API_KEY
+const YouTubeAPIKey1 = process.env.YouTube_API_KEY1
+const YouTubeAPIKey2 = process.env.YouTube_API_KEY2
+const YouTubeAPIKey3 = process.env.YouTube_API_KEY3
+const YouTubeAPIKey4 = process.env.YouTube_API_KEY4
+const YouTubeAPIKey5 = process.env.YouTube_API_KEY5
+let Key_number = 1
+async function YouTube_API_Key() {
+    if(Key_number === 1){
+        Key_number++
+        return YouTubeAPIKey1
+    }
+    if(Key_number === 2){
+        Key_number++
+        return YouTubeAPIKey2
+    }
+    if(Key_number === 3){
+        Key_number++
+        return YouTubeAPIKey3
+    }
+    if(Key_number === 4){
+        Key_number++
+        return YouTubeAPIKey4
+    }
+    if(Key_number === 5){
+        Key_number = 1
+        return YouTubeAPIKey5
+    }
+}
 
 async function playlist(playlistId,youtube_error_channel) {
     try {
@@ -13,7 +40,8 @@ async function playlist(playlistId,youtube_error_channel) {
         let totalResults = 0;
 
         if (playlistId.length === 13){
-            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_Key}`;
+            const YouTube_API_key = await YouTube_API_Key()
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_key}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -27,7 +55,8 @@ async function playlist(playlistId,youtube_error_channel) {
         }
 
         do {
-            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_Key}&pageToken=${nextPageToken}`;
+            const YouTube_API_key = await YouTube_API_Key()
+            const url = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet&maxResults=${maxResults}&playlistId=${playlistId}&part=contentDetails&key=${YouTube_API_key}&pageToken=${nextPageToken}`;
             const response = await fetch(url);
             const data = await response.json();
 
@@ -48,8 +77,10 @@ async function playlist(playlistId,youtube_error_channel) {
 }
 
 async function search(searchQuery,maxResults) {
-    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${maxResults}&q=${encodeURIComponent(searchQuery)}&key=${YouTube_API_Key}`;
+    const YouTube_API_key = await YouTube_API_Key()
+    const searchUrl = `https://www.googleapis.com/youtube/v3/search?part=snippet&type=video&maxResults=${maxResults}&q=${encodeURIComponent(searchQuery)}&key=${YouTube_API_key}`;
     try {
+        console.log(YouTube_API_key)
         const response = await fetch(searchUrl);
         const data = await response.json();
 
