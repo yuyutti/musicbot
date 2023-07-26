@@ -31,6 +31,8 @@ const prefix = process.env.DISCORD_PREFIX
 
 const filePath = path.join(__dirname, '/data/guildLanguage.json');
 
+const adminId = ['687374475997741075', '933314562487386122'];
+
 let command_channel, playing_channel, vc_channel, join_left_channel, error_channel, express_error_channel, discordapi_error_channel, playing_error_channel;
 
 let queues = {};
@@ -158,7 +160,7 @@ client.on('messageCreate', async (message) => {
 
     if(command === 'kick'){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
-        if(!message.author.id === '933314562487386122'){ return console.log("kick command is access deny") }
+        if(!adminId.includes(message.author.id)){ return console.log("kick command is access deny") }
         if(!arg){ return console.log("arg is not found") }
         return disconnect(arg)
     }
@@ -599,7 +601,6 @@ async function play(message) {
         var type = 'Disconnected'
         notice_vc(guildId,type,vc_channel)
         await disconnect(guildId)
-        connection.destroy();
     });
 }
 
@@ -641,7 +642,7 @@ function guildLanguage() {
     }
 }
 async function disconnect(guildId) {
-    if (voiceConnections[guildId]) {
+    if (voiceConnections[guildId] && !voiceConnections[guildId].destroyed) {
         await voiceConnections[guildId].disconnect();
         delete voiceConnections[guildId];
     }
@@ -665,16 +666,12 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         const guildId = newState.guild.id;
         const memberCount = oldVoiceChannel ? oldVoiceChannel.members.size : 0;
         if(memberCount === 1){
-            voiceConnections[guildId].disconnect();
-            delete voiceConnections[guildId];
-            delete queues[guildId];
-            delete loopStatus[guildId];
-            delete autoplayStatus[guildId];
+            disconnect(guildId)
         }
     }
 });
-client.on('guildCreate', (guild) => {var type = "join";updateActivity();join_left(guild,type,join_left_channel)});
-client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel);disconnect(guild)});
+client.on('guildCreate', (guild) => {var type = "join";updateActivity();join_left(guild,type,join_left_channel);});
+client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel);disconnect(guild.id)});
 client.login(token);
 app.listen(3010)
 
