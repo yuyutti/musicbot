@@ -172,6 +172,11 @@ client.on('messageCreate', async (message) => {
 
     if(command === "lang"){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        if(!arg){
+            await message.channel.send(`${resxData[lang].root.lang[0].data[0].value}`);
+            await message.channel.send(`${resxData[lang].root.lang[0].data[1].value}`);
+            await message.channel.send(`${resxData[lang].root.lang[0].data[2].value}`);
+        }
         if(arg === "ja"){
             await setLanguage(message,guildId,"ja")
         }
@@ -504,7 +509,8 @@ client.on('messageCreate', async (message) => {
                 { name: `${prefix}skip${resxData[lang].root.help[0].data[8].value}`, value: `${resxData[lang].root.help[0].data[14].value} ${prefix}skip\n${resxData[lang].root.help[0].data[15].value} ${prefix}skip 15` },
                 { name: `${prefix}loop`, value: `${resxData[lang].root.help[0].data[16].value}` },
                 { name: `${prefix}autoplay, ${prefix}auto, ${prefix}ap`, value: `${resxData[lang].root.help[0].data[17].value}` },
-                { name: `${resxData[lang].root.help[0].data[18].value}`, value: `${resxData[lang].root.help[0].data[19].value}` },
+                { name: `${prefix}lang`, value: `${resxData[lang].root.help[0].data[18].value}` },
+                { name: `${resxData[lang].root.help[0].data[19].value}`, value: `${resxData[lang].root.help[0].data[20].value}` },
             )
             .setColor('RED');
         message.channel.send({ embeds: [helpEmbed] });

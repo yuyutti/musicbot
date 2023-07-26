@@ -177,6 +177,9 @@
         <data name="auto play">
             <value>Enables or disables autoplay Default: Disabled</value>
         </data>
+        <data name="lang">
+            <value>You can customize the language used by the BOT</value>
+        </data>
         <data name="short commands -1">
             <value>Regarding short commands</value>
         </data>
@@ -246,7 +249,7 @@
             <value>Languages currently supported: Japanese / English</value>
         </data>
         <data name="lang -3">
-            <value>Japanese: [ !lang ja ] | English: [ !lang us ]</value>
+            <value>Japanese: [ !lang ja ] | English: [ !lang en ]</value>
         </data>
         <data name="lang change en">
             <value>Changed the language of the BOT to English</value>

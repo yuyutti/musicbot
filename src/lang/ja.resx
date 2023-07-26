@@ -171,6 +171,9 @@
         <data name="auto play">
             <value>自動再生を有効化、無効化します デフォルト: 無効</value>
         </data>
+        <data name="lang">
+            <value>BOTの使用する言語をカスタマイズできます</value>
+        </data>
         <data name="short commands -1">
             <value>短縮コマンドに関して</value>
         </data>
@@ -240,7 +243,7 @@
             <value>現在対応している言語: 英語 / 日本語</value>
         </data>
         <data name="lang -3">
-            <value>英語: [ !lang us ] | 日本語: [ !lang ja ]</value>
+            <value>英語: [ !lang en ] | 日本語: [ !lang ja ]</value>
         </data>
         <data name="lang change ja">
             <value>BOTの言語を日本語に変更しました</value>
