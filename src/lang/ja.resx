@@ -232,4 +232,18 @@
             <value>再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」</value>
         </data>
     </youtubeapi>
+    <lang>
+        <data name="lang -1">
+            <value>コマンドが正しくありません</value>
+        </data>
+        <data name="lang -2">
+            <value>現在対応している言語: 英語 / 日本語</value>
+        </data>
+        <data name="lang -3">
+            <value>英語: [ !lang us ] | 日本語: [ !lang ja ]</value>
+        </data>
+        <data name="lang change ja">
+            <value>BOTの言語を日本語に変更しました</value>
+        </data>
+    </lang>
 </root>

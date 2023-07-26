@@ -112,7 +112,7 @@ app.get('/vc', (req, res) => {
     }
 });
 
-client.on('ready', () => {
+client.on('ready', async() => {
     updateActivity()
     console.log(`Logged in as ${client.user.tag}`);
 
@@ -127,21 +127,26 @@ client.on('ready', () => {
     playing_error_channel = management_guildId.channels.cache.get('1132604753654849577');
     youtube_error_channel = management_guildId.channels.cache.get('1132338080918016090');
 
+    const existingLocales = await guildLanguage();
     let serverLocales = {};
     const guilds = client.guilds.cache;
     guilds.forEach(guild => {
-        if (guild.preferredLocale) {
-            serverLocales[guild.id] = guild.preferredLocale;
+        if(existingLocales[guild.id]){
+            const savedLang = existingLocales[guild.id]     
+            if(savedLang === guild.preferredLocale){
+                serverLocales[guild.id] = guild.preferredLocale;
+            }
+            else{
+                serverLocales[guild.id] = savedLang
+            }
         }
-        else {
-            delete serverLocales[guild.id];
+        else{
+            serverLocales[guild.id] = guild.preferredLocale;
         }
     });
     fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
         if (err) {
-            console.error('guildLanguageの保存中にエラーが発生しました:', err);
-        } else {
-            console.log('guildLanguageが正常に保存されました');
+            error_log(err,error_channel)
         }
     });
 });
@@ -163,6 +168,21 @@ client.on('messageCreate', async (message) => {
         if(!adminId.includes(message.author.id)){ return console.log("kick command is access deny") }
         if(!arg){ return console.log("arg is not found") }
         return disconnect(arg)
+    }
+
+    if(command === "lang"){
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        if(arg === "ja"){
+            await setLanguage(message,guildId,"ja")
+        }
+        if(arg === "en"){
+            await setLanguage(message,guildId,"en-US")
+        }
+        if(!arg === "ja" || !arg === "en"){
+            await message.channel.send(`${resxData[lang].root.lang[0].data[0].value}`);
+            await message.channel.send(`${resxData[lang].root.lang[0].data[1].value}`);
+            await message.channel.send(`${resxData[lang].root.lang[0].data[2].value}`);
+        }
     }
 
     if (command === 'play' || command === "p") {
@@ -631,15 +651,26 @@ function formatDuration(duration) {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 }
-function guildLanguage() {
+async function guildLanguage() {
     try {
-        const data = fs.readFileSync(filePath, 'utf-8');
+        const data = await fs.readFileSync(filePath, 'utf-8');
         return JSON.parse(data);
     }
     catch (err) {
-        console.error('ファイルの読み込み中にエラーが発生しました:', err);
+        error_log(err,error_channel)
         return {};
     }
+}
+async function setLanguage(message,guildId, newLang) {
+    const existingLocales = await guildLanguage();
+    existingLocales[guildId] = newLang;
+    fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
+        if (err) {
+            error_log(err,error_channel)
+        } else {
+            return message.channel.send(`${resxData[newLang].root.lang[0].data[3].value}`);
+        }
+    });
 }
 async function disconnect(guildId) {
     if (voiceConnections[guildId] && !voiceConnections[guildId].destroyed) {
