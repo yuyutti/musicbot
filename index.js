@@ -553,6 +553,9 @@ async function play(message) {
     }
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
     autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
+    const connection = getVoiceConnection(guildId);
+    connection.removeAllListeners(VoiceConnectionStatus.Ready);
+    connection.removeAllListeners(VoiceConnectionStatus.Disconnected);
     const queue_Now = queue.shift()
     queue.unshift(queue_Now);
     const player = createAudioPlayer();
@@ -614,7 +617,6 @@ async function play(message) {
             }
         }
     });
-    const connection = getVoiceConnection(guildId);
     connection.on(VoiceConnectionStatus.Ready, () => {
         var type = 'Ready'
         return notice_vc(guildId,type,vc_channel)
