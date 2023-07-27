@@ -40,10 +40,6 @@ let loopStatus = {};
 let autoplayStatus = {};
 let voiceConnections = {};
 
-app.get('/lang', async (req,res) => {
-    res.send(resxData)
-})
-
 app.get('/server', async (req,res) => {
     try{
         const guilds = client.guilds.cache;
@@ -587,7 +583,7 @@ async function play(message) {
                 message.channel.send({ embeds: [embed] });
             } catch (error) {
                 message.channel.send(`${resxData[lang].root.play_[0].data[2].value}`)
-                discordapi_error(error,discordapi_error_channel)
+                return discordapi_error(error,discordapi_error_channel)
             }
         }
     });
@@ -612,7 +608,7 @@ async function play(message) {
             if (queue.length > 0) {
                 play(message);
             } else {
-                setTimeout(() => {
+                return setTimeout(() => {
                     disconnect(guildId)
                 }, 1000);
             }
@@ -621,12 +617,12 @@ async function play(message) {
     const connection = getVoiceConnection(guildId);
     connection.on(VoiceConnectionStatus.Ready, () => {
         var type = 'Ready'
-        notice_vc(guildId,type,vc_channel)
+        return notice_vc(guildId,type,vc_channel)
     });
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
         var type = 'Disconnected'
         notice_vc(guildId,type,vc_channel)
-        await disconnect(guildId)
+        return await disconnect(guildId)
     });
 }
 
@@ -672,7 +668,7 @@ async function setLanguage(message,guildId, newLang) {
     existingLocales[guildId] = newLang;
     fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
         if (err) {
-            error_log(err,error_channel)
+            return error_log(err,error_channel)
         } else {
             return message.channel.send(`${resxData[newLang].root.lang[0].data[3].value}`);
         }
@@ -686,12 +682,13 @@ async function disconnect(guildId) {
     if (queues[guildId]) {delete queues[guildId];}
     if (loopStatus[guildId]) {delete loopStatus[guildId];}
     if (autoplayStatus[guildId]) {delete autoplayStatus[guildId];}
+    return
 }
 
 const updateActivity = () => {
     const serverCount = client.guilds.cache.size;
     const voiceCount = Object.keys(voiceConnections).length;
-    client.user.setActivity(`!help | ${voiceCount}VC ${serverCount} Servers`)
+    return client.user.setActivity(`!help | ${voiceCount}VC ${serverCount} Servers`)
 }
 client.on('voiceStateUpdate', (oldState, newState) => {
     updateActivity()
@@ -703,20 +700,20 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         const guildId = newState.guild.id;
         const memberCount = oldVoiceChannel ? oldVoiceChannel.members.size : 0;
         if(memberCount === 1){
-            disconnect(guildId)
+            return disconnect(guildId)
         }
     }
 });
-client.on('guildCreate', (guild) => {var type = "join";updateActivity();join_left(guild,type,join_left_channel);});
-client.on('guildDelete', (guild) => {var type = "left";updateActivity();join_left(guild,type,join_left_channel);disconnect(guild.id)});
+client.on('guildCreate', (guild) => {var type = "join";updateActivity();return join_left(guild,type,join_left_channel);});
+client.on('guildDelete', (guild) => {var type = "left";updateActivity();return join_left(guild,type,join_left_channel);disconnect(guild.id)});
 client.login(token);
 app.listen(3010)
 
 process.on('uncaughtException', (error) => {
     console.error('Uncaught Exception:', error);
-    error_log(error,error_channel)
+    return error_log(error,error_channel)
 });
 process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
-    error_log(reason,error_channel)
+    return error_log(reason,error_channel)
 });
