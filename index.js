@@ -173,7 +173,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if(command === "guildlang"){
-        const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF]/;
+        const japaneseRegex = /[\u3040-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF]/;
         const existingLocales = await guildLanguage();
         let serverLocales = {};
         for (const guildId in existingLocales) {
@@ -182,7 +182,7 @@ client.on('messageCreate', async (message) => {
                 serverLocales[guild.id] = "ja";
             }
             else{
-                serverLocales[guild.id] = "en";
+                serverLocales[guild.id] = "en-US";
             }
         }
         fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
@@ -743,7 +743,7 @@ client.on('guildCreate', async (guild) => {
     var type = "join";
     updateActivity();
     join_left(guild,type,join_left_channel);
-    const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF]/;
+    const japaneseRegex = /[\u3040-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF]/;
     if(japaneseRegex.test(guild.name)){
         const existingLocales = await guildLanguage();
         existingLocales[guild.id] = "ja";
