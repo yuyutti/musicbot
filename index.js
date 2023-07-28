@@ -173,6 +173,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if(command === "guildlang"){
+        if(!adminId.includes(message.author.id)){ return console.log("kick command is access deny") }
         const japaneseRegex = /[\u3040-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF]/;
         const existingLocales = await guildLanguage();
         let serverLocales = {};
