@@ -202,6 +202,12 @@ client.on('messageCreate', async (message) => {
 
     if(command === "lang"){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        if(adminId.includes(message.author.id)){
+            const args = arg.split(/ +/);
+            const arg1 = args[0];
+            const arg2 = args[1];
+            await setLanguage(message,arg1, arg2)
+        }
         if(!arg){
             await message.channel.send(`${resxData[lang].root.lang[0].data[0].value}`);
             await message.channel.send(`${resxData[lang].root.lang[0].data[1].value}`);
@@ -699,7 +705,7 @@ async function guildLanguage() {
         return {};
     }
 }
-async function setLanguage(message,guildId, newLang) {
+async function setLanguage(message,guildId,newLang) {
     const existingLocales = await guildLanguage();
     existingLocales[guildId] = newLang;
     fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
