@@ -40,6 +40,19 @@ let loopStatus = {};
 let autoplayStatus = {};
 let voiceConnections = {};
 
+app.get('/lang', async (req,res) => {
+    const existingLocales = await guildLanguage();
+    let lang = {}
+    let position = 1;
+    for (const guildId in existingLocales) {
+        const Language = existingLocales[guildId];
+        const guild = client.guilds.cache.get(guildId);
+        lang[position] = { ServerName: guild.name, Language: Language }
+        position++
+    }
+    res.send(lang)
+})
+
 app.get('/server', async (req,res) => {
     try{
         const guilds = client.guilds.cache;
@@ -159,7 +172,27 @@ client.on('messageCreate', async (message) => {
         lang = 'en-US';
     }
 
-    if(command === 'kick'){
+    if(command === "guildlang"){
+        const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF]/;
+        const existingLocales = await guildLanguage();
+        let serverLocales = {};
+        for (const guildId in existingLocales) {
+            const guild = client.guilds.cache.get(guildId);
+            if(japaneseRegex.test(guild.name)){
+                serverLocales[guild.id] = "ja";
+            }
+            else{
+                serverLocales[guild.id] = "en";
+            }
+        }
+        fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
+            if (err) {
+                return error_log(err,error_channel)
+            }
+        });
+    }
+    
+    if(command === "kick"){
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!adminId.includes(message.author.id)){ return console.log("kick command is access deny") }
         if(!arg){ return console.log("arg is not found") }
@@ -706,8 +739,27 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         }
     }
 });
-client.on('guildCreate', (guild) => {var type = "join";updateActivity();return join_left(guild,type,join_left_channel);});
-client.on('guildDelete', (guild) => {var type = "left";updateActivity();return join_left(guild,type,join_left_channel);disconnect(guild.id)});
+client.on('guildCreate', async (guild) => {
+    var type = "join";
+    updateActivity();
+    join_left(guild,type,join_left_channel);
+    const japaneseRegex = /[\u3040-\u309F\u30A0-\u30FF\uFF00-\uFFEF]/;
+    if(japaneseRegex.test(guild.name)){
+        const existingLocales = await guildLanguage();
+        existingLocales[guild.id] = "ja";
+        fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
+            if (err) {
+                return error_log(err,error_channel)
+            }
+        });
+    }
+});
+client.on('guildDelete', (guild) => {
+    var type = "left";
+    updateActivity();
+    join_left(guild,type,join_left_channel);
+    return disconnect(guild.id)
+});
 client.login(token);
 app.listen(3010)
 
