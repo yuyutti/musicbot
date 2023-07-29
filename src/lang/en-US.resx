@@ -100,6 +100,14 @@
             <value>rd</value>
         </data>
     </skip>
+    <remove>
+        <data name="remove complete">
+            <value>The second song has been removed from the queue</value>
+        </data>
+        <data name="not int">
+            <value>The song with the specified number does not exist in the queue</value>
+        </data>
+    </remove>
     <loop>
         <data name="vc joind execution command">
             <value>Please join the VC and then execute the command</value>

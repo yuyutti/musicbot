@@ -94,6 +94,14 @@
             <value>現在再生中の曲です</value>
         </data>
     </skip>
+    <remove>
+        <data name="remove complete">
+            <value>番目の曲をキューから削除しました</value>
+        </data>
+        <data name="not int">
+            <value>指定された番号の曲がキューに存在しません</value>
+        </data>
+    </remove>
     <loop>
         <data name="vc joind execution command">
             <value>VCに参加してからコマンドを実行してください</value>

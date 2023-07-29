@@ -53,6 +53,10 @@ app.get('/lang', async (req,res) => {
     res.send(lang)
 })
 
+app.get('/langfile', async (req,res) => {
+    res.send(resxData)
+})
+
 app.get('/server', async (req,res) => {
     try{
         const guilds = client.guilds.cache;
@@ -200,14 +204,17 @@ client.on('messageCreate', async (message) => {
         return disconnect(arg)
     }
 
-    if(command === "lang"){
-        const arg = message.content.slice(prefix.length + command.length + 1).trim();
+    if(command === "adminlang"){
         if(adminId.includes(message.author.id)){
             const args = arg.split(/ +/);
             const arg1 = args[0];
             const arg2 = args[1];
             await setLanguage(message,arg1, arg2)
         }
+    }
+
+    if(command === "lang"){
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if(!arg){
             await message.channel.send(`${resxData[lang].root.lang[0].data[0].value}`);
             await message.channel.send(`${resxData[lang].root.lang[0].data[1].value}`);
@@ -499,6 +506,21 @@ client.on('messageCreate', async (message) => {
         }
         else {
             return message.channel.send(`${resxData[lang].root.skip[0].data[5].value}`);
+        }
+    }
+
+    if (command === "remove"){
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
+        const queue = queues[guildId];
+        if(/^\d+$/.test(arg)){
+            const int = parseInt(arg, 10)-1
+            if (int >= 1 && int < queue.length) {
+                queue.splice(int, 1);
+                return message.channel.send(`${int+1}${resxData[lang].root.remove[0].data[0].value}`);
+            }
+            else {
+                return message.channel.send(`${resxData[lang].root.remove[0].data[1].value}`);
+            }
         }
     }
 
