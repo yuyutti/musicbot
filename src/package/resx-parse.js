@@ -4,7 +4,7 @@ const xml2js = require('xml2js');
 
 const fileName = path.basename(__filename);
 
-const resxDir = __dirname + '/lang';
+const resxDir = __dirname + '/../../lang';
 let resxData = {};
 
 fs.readdirSync(resxDir).forEach(file => {

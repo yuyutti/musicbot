@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { youtube_error } = require('../notification')
+const { youtube_error } = require('../package/notification')
 const YouTubeAPIKey1 = process.env.YouTube_API_KEY1
 const YouTubeAPIKey2 = process.env.YouTube_API_KEY2
 const YouTubeAPIKey3 = process.env.YouTube_API_KEY3
