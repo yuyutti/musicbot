@@ -298,7 +298,7 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 queue_List(queueItem, message);
-                                await interaction.deferReply(`${resxData[lang].root.play[0].data[7].value}`);
+                                await interaction.reply(`${resxData[lang].root.play[0].data[7].value}`);
                             }
                         })
                         .catch(async() => {
