@@ -4,7 +4,7 @@
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-const { playlist, NextPlay, search } = require('./src/api/YouTubeAPI');
+const { playlist, NextPlay, search, getInfo } = require('./src/api/YouTubeAPI');
 const { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error } = require('./src/package/notification');
 const resxData = require('./src/package/resx-parse');
 const fs = require('fs');
@@ -298,7 +298,7 @@ client.on('messageCreate', async (message) => {
                             if (interaction.customId === 'cancel') {
                                 const queueItem = { url: fastVideo, title: fastVideotitle }
                                 queue_List(queueItem, message);
-                                await interaction.deferReply();
+                                await interaction.deferReply(`${resxData[lang].root.play[0].data[7].value}`);
                             }
                         })
                         .catch(async() => {
@@ -309,8 +309,8 @@ client.on('messageCreate', async (message) => {
                         return;
                     }
                 }
-                const info = await ytdl.getInfo(arg);
-                const title = info.videoDetails.title;
+                const info = await getInfo(arg);
+                const title = info.title;
                 const queueItem = { url: arg, title: title }
                 queue_List(queueItem,message)
                 return;
@@ -638,9 +638,9 @@ async function play(message) {
     player.once('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Playing) {
             try {
-                const info = await ytdl.getInfo(queue_Now.url);
-                const title = info.videoDetails.title;
-                const duration = info.videoDetails.lengthSeconds;
+                const info = await getInfo(queue_Now.url);
+                const title = info.title;
+                const duration = info.duration;
                 const embed = new MessageEmbed()
                     .setTitle(`:musical_note: **Playing Now : ${title}**`)
                     .setDescription(`:alarm_clock: **${resxData[lang].root.play_[0].data[1].value} : ${formatDuration(duration)}**`)

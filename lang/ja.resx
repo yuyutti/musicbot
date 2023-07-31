@@ -22,6 +22,9 @@
         <data name="not video">
             <value>動画が見つかりませんでした</value>
         </data>
+        <data name="interact cancel">
+            <value>最初の1曲のみ再生します</value>
+        </data>
     </play>
     <playsearch>
         <data name="not input keyword">

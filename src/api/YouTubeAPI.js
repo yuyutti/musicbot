@@ -1,3 +1,4 @@
+const moment = require('moment');
 require('dotenv').config();
 const { youtube_error } = require('../package/notification')
 const YouTubeAPIKey1 = process.env.YouTube_API_KEY1
@@ -128,8 +129,28 @@ async function NextPlay(VideoURL) {
     }
 }
 
+async function getInfo(VideoURL) {
+    const regex = /(?:\?v=|\/embed\/|\/v\/|\.be\/|\/shorts\/)([\w-]+)(?:\S+)?$/;
+    const matchResult = VideoURL.match(regex);
+    const vid = matchResult ? matchResult[1] : null;
+    const YouTube_API_key = await YouTube_API_Key()
+    const url = `https://www.googleapis.com/youtube/v3/videos?id=${vid}&key=${YouTube_API_key}&part=snippet,contentDetails`;
+    try {
+    const response = await fetch(url)
+    const data = await response.json();
+    const title = data.items[0].snippet.title
+    const duration = moment.duration(data.items[0].contentDetails.duration).asSeconds();
+    return { title, duration }
+    }
+    catch{
+        console.log(error);
+        youtube_error(error,youtube_error_channel)
+        return null;
+    }
+}
+
 function getRandomNumber() {
     return Math.floor(Math.random() * (10 - 1 + 1)) + 1;
 }
 
-module.exports = { playlist, NextPlay, search }
+module.exports = { playlist, NextPlay, search, getInfo }
