@@ -1,7 +1,4 @@
-// TODO list
-// ・queueコマンド時embedを1ずつ送信し前後のページへ行きたいときはインタラクトボタンを押す
-
-const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton } = require('discord.js');
+const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, InteractionCollector } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
 const { playlist, NextPlay, search, getInfo } = require('./src/api/YouTubeAPI');
@@ -14,6 +11,7 @@ const app = express()
 require('dotenv').config();
 
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
+
 const confirmButton = new MessageButton()
     .setCustomId('confirm')
     .setLabel('✔')
@@ -24,7 +22,18 @@ const cancelButton = new MessageButton()
     .setLabel('✖')
     .setStyle('DANGER');
 
+const previousButton = new MessageButton()
+    .setCustomId('previous')
+    .setStyle('PRIMARY')
+    .setLabel('Previous');
+
+const nextButton = new MessageButton()
+    .setCustomId('next')
+    .setStyle('PRIMARY')
+    .setLabel('Next');
+
 const row = new MessageActionRow().addComponents(confirmButton, cancelButton);
+const buttonRow = new MessageActionRow().addComponents(previousButton, nextButton);
 
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
@@ -421,31 +430,53 @@ client.on('messageCreate', async (message) => {
                 .setColor('RED');
             message.channel.send({ embeds: [queueEmbed] });
         } else {
-            const queueEmbed = new MessageEmbed()
-                .setTitle(`${resxData[lang].root.queue[0].data[0].value}`)
-                .setDescription(`${resxData[lang].root.queue[0].data[2].value}`)
-                .setColor('RED');
-                
-            let position = 1;
-            try {
-                for (let i = 0; i < queue.length; i++) {
-                    const title = queue[i].title;
-                    const queueField = i === 0 ? { name: `${resxData[lang].root.queue[0].data[3].value}`, value: `**${title}**` } : { name: `No.${position}`, value: `**${title}**` };
-                    queueEmbed.addFields(queueField);
-                    position++;
-                    if ((i + 1) % 25 === 0) {
-                        message.channel.send({ embeds: [queueEmbed] });
-                        queueEmbed.setTitle('\u0020');
-                        queueEmbed.setDescription('\u0020');
-                        queueEmbed.setColor('RED');
-                        queueEmbed.fields = [];
-                    }
+            const queuePages = paginateQueue(queue);
+            let currentPage = 0;
+            
+            const generateQueueEmbed = () => {
+                const queueEmbed = new MessageEmbed()
+                    .setTitle(`${resxData[lang].root.queue[0].data[0].value}`)
+                    .setDescription(`${resxData[lang].root.queue[0].data[2].value}`)
+                    .setColor('RED');
+        
+                const currentQueuePage = queuePages[currentPage];
+                let position = currentPage * 10 + 1;
+                for (const song of currentQueuePage) {
+                        const title = song.title;
+                        const isFirstPageFirstItem = currentPage === 0 && position === currentPage * 25 + 1;
+                        const queueField = isFirstPageFirstItem
+                            ? { name: `${resxData[lang].root.queue[0].data[3].value}`, value: `**${title}**` }
+                            : { name: `No.${position}`, value: `**${title}**` };
+                    
+                        queueEmbed.addFields(queueField);
+                        position++;
                 }
-            } catch (error) {
-                console.log(error);
-                discordapi_error(error,discordapi_error_channel)
-            }
-            message.channel.send({ embeds: [queueEmbed] });
+                return queueEmbed;
+            };
+            previousButton.setDisabled(currentPage === 0);
+            const msg = await message.channel.send({ embeds: [generateQueueEmbed()], components: [buttonRow] });
+            const collector = new InteractionCollector(client, { message: msg, time: 60000 });
+    
+            collector.on('collect', async (interaction) => {
+                if (interaction.isButton()) {
+                    if (interaction.customId === 'previous') {
+                        if (currentPage > 0) {
+                        currentPage--;
+                        }
+                    }
+                    if (interaction.customId === 'next') {
+                        if (currentPage < queuePages.length - 1) {
+                        currentPage++;
+                        }
+                    }
+                    previousButton.setDisabled(currentPage === 0);
+                    nextButton.setDisabled(currentPage >= queuePages.length - 1);
+                    await interaction.update({ embeds: [generateQueueEmbed()], components: [buttonRow] });
+                }
+            });
+            collector.on('end', () => {
+                msg.edit({ components: [] });
+            });
         }
     }
 
@@ -706,6 +737,16 @@ async function processQueue(message, guildId) {
         }
     }
     return null;
+}
+
+function paginateQueue(queue) {
+    const perPage = 10;
+    const pages = [];
+    for (let i = 0; i < queue.length; i += perPage) {
+        const page = queue.slice(i, i + perPage);
+        pages.push(page);
+    }
+    return pages;
 }
 
 function formatDuration(duration) {
