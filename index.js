@@ -47,7 +47,8 @@ app.get('/lang', async (req,res) => {
     for (const guildId in existingLocales) {
         const Language = existingLocales[guildId];
         const guild = client.guilds.cache.get(guildId);
-        lang[position] = { ServerName: guild.name, Language: Language }
+        const guildName = guild? guild.name : "unknown guild"
+        lang[position] = { ServerName: guildName, Language: Language }
         position++
     }
     res.send(lang)

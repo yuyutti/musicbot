@@ -46,11 +46,10 @@ async function playlist(playlistId,youtube_error_channel) {
             const response = await fetch(url);
             const data = await response.json();
 
-            totalResults = data.pageInfo.totalResults;
-
             const videos = data.items;
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
+            totalResults = videoUrls.length;
             mix = true
             return { videoUrls, videoTitles, totalResults, mix };
         }
@@ -61,14 +60,14 @@ async function playlist(playlistId,youtube_error_channel) {
             const response = await fetch(url);
             const data = await response.json();
 
-            totalResults += data.pageInfo.totalResults;
             nextPageToken = data.nextPageToken;
 
             const videos = data.items;
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
             iterations++;
-        } while (nextPageToken && iterations < 20);
+        } while (nextPageToken);
+        totalResults = videoUrls.length;
         mix = false
         return { videoUrls, videoTitles, totalResults, mix };
     } catch (error) {
