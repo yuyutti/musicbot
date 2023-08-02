@@ -443,7 +443,7 @@ client.on('messageCreate', async (message) => {
                 let position = currentPage * 10 + 1;
                 for (const song of currentQueuePage) {
                         const title = song.title;
-                        const isFirstPageFirstItem = currentPage === 0 && position === currentPage * 25 + 1;
+                        const isFirstPageFirstItem = currentPage === 0 && position === currentPage * 10 + 1;
                         const queueField = isFirstPageFirstItem
                             ? { name: `${resxData[lang].root.queue[0].data[3].value}`, value: `**${title}**` }
                             : { name: `No.${position}`, value: `**${title}**` };
@@ -453,36 +453,36 @@ client.on('messageCreate', async (message) => {
                 }
                 return queueEmbed;
             };
-            previousButton.setDisabled(currentPage === 0);
+            previousButton.setDisabled(false)
+            nextButton.setDisabled(false)
             const msg = await message.channel.send({ embeds: [generateQueueEmbed()], components: [buttonRow] });
             const collector = new InteractionCollector(client, { message: msg, time: 60000 });
     
             collector.on('collect', async (interaction) => {
                 if (interaction.isButton()) {
-                    if (interaction.customId === 'previous') {
+                    if(interaction.customId === 'previous') {
                         if (currentPage > 0) {
                         currentPage--;
                         }
                     }
-                    if (interaction.customId === 'next') {
+                    if(interaction.customId === 'next') {
                         if (currentPage < queuePages.length - 1) {
                         currentPage++;
                         }
                     }
-                    previousButton.setDisabled(currentPage === 0);
-                    nextButton.setDisabled(currentPage >= queuePages.length - 1);
                     await interaction.update({ embeds: [generateQueueEmbed()], components: [buttonRow] });
                 }
             });
             collector.on('end', () => {
-                msg.edit({ components: [] });
+                buttonRow.components.forEach(component => component.setDisabled(true));
+                msg.edit({ components: [buttonRow] });
             });
         }
     }
 
     if (command === "stop" || command === "dc") {
         const voiceGuildIds = Object.keys(voiceConnections);
-        for (const voiceGuildId of voiceGuildIds) {
+        for(const voiceGuildId of voiceGuildIds){
             if (voiceGuildId === guildId) {
                 try {
                     disconnect(guildId)
