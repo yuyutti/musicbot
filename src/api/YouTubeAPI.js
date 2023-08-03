@@ -9,38 +9,38 @@ const YouTubeAPIKey5 = process.env.YouTube_API_KEY5
 const YouTubeAPIKey6 = process.env.YouTube_API_KEY6
 const YouTubeAPIKey7 = process.env.YouTube_API_KEY7
 const YouTubeAPIKey8 = process.env.YouTube_API_KEY8
-let Key_number = 1
+let Key_number = 5
 async function YouTube_API_Key() {
-    if(Key_number === 1){
-        Key_number++
-        return YouTubeAPIKey1
-    }
-    if(Key_number === 2){
-        Key_number++
-        return YouTubeAPIKey2
-    }
-    if(Key_number === 3){
-        Key_number++
-        return YouTubeAPIKey3
-    }
-    if(Key_number === 4){
-        Key_number++
-        return YouTubeAPIKey4
-    }
-    if(Key_number === 4){
+    // if(Key_number === 1){
+    //     Key_number++
+    //     return YouTubeAPIKey1
+    // }
+    // if(Key_number === 2){
+    //     Key_number++
+    //     return YouTubeAPIKey2
+    // }
+    // if(Key_number === 3){
+    //     Key_number++
+    //     return YouTubeAPIKey3
+    // }
+    // if(Key_number === 4){
+    //     Key_number++
+    //     return YouTubeAPIKey4
+    // }
+    if(Key_number === 5){
         Key_number++
         return YouTubeAPIKey5
     }
-    if(Key_number === 4){
+    if(Key_number === 6){
         Key_number++
         return YouTubeAPIKey6
     }
-    if(Key_number === 4){
+    if(Key_number === 7){
         Key_number++
         return YouTubeAPIKey7
     }
     if(Key_number === 8){
-        Key_number = 1
+        Key_number = 5
         return YouTubeAPIKey8
     }
 }
