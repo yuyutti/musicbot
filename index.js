@@ -635,16 +635,15 @@ async function play(message) {
     if (!queue || queue.length === 0) {
         return disconnect(guildId);
     }
-    try {
-        voiceConnections[guildId] = joinVoiceChannel({
-            channelId: message.member.voice.channel.id,
-            guildId: message.guild.id,
-            adapterCreator: message.guild.voiceAdapterCreator,
-        });
-    } catch (error) {
+    if(!message.member.voice.channel){
         message.channel.send(`${resxData[lang].root.play_[0].data[0].value}`);
         return delete queues[guildId];
     }
+    voiceConnections[guildId] = joinVoiceChannel({
+        channelId: message.member.voice.channel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+    });
     loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
     autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
     const connection = getVoiceConnection(guildId);
