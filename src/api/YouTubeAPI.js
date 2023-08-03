@@ -6,6 +6,9 @@ const YouTubeAPIKey2 = process.env.YouTube_API_KEY2
 const YouTubeAPIKey3 = process.env.YouTube_API_KEY3
 const YouTubeAPIKey4 = process.env.YouTube_API_KEY4
 const YouTubeAPIKey5 = process.env.YouTube_API_KEY5
+const YouTubeAPIKey6 = process.env.YouTube_API_KEY6
+const YouTubeAPIKey7 = process.env.YouTube_API_KEY7
+const YouTubeAPIKey8 = process.env.YouTube_API_KEY8
 let Key_number = 1
 async function YouTube_API_Key() {
     if(Key_number === 1){
@@ -24,9 +27,21 @@ async function YouTube_API_Key() {
         Key_number++
         return YouTubeAPIKey4
     }
-    if(Key_number === 5){
-        Key_number = 1
+    if(Key_number === 4){
+        Key_number++
         return YouTubeAPIKey5
+    }
+    if(Key_number === 4){
+        Key_number++
+        return YouTubeAPIKey6
+    }
+    if(Key_number === 4){
+        Key_number++
+        return YouTubeAPIKey7
+    }
+    if(Key_number === 8){
+        Key_number = 1
+        return YouTubeAPIKey8
     }
 }
 
@@ -66,7 +81,7 @@ async function playlist(playlistId,youtube_error_channel) {
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
             iterations++;
-        } while (nextPageToken);
+        } while (nextPageToken && iterations < 40);
         totalResults = videoUrls.length;
         mix = false
         return { videoUrls, videoTitles, totalResults, mix };
