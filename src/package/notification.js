@@ -2,6 +2,7 @@ const { Client, Intents } = require('discord.js');
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
 
 async function notice_command(guildId,message,prefix,command,command_channel) {
+    if(command_channel === null) return;
     const guild = await client.guilds.fetch(guildId);
     const userName = message.author.username;
     const guildName = guild.name
@@ -10,6 +11,7 @@ async function notice_command(guildId,message,prefix,command,command_channel) {
 }
 
 async function notice_playing(queue_Now,guildId,playing_channel) {
+    if(playing_channel === null) return;
     const guild = await client.guilds.fetch(guildId);
     const guildName = guild.name
     const logMessage = `**${guildName}**で**「${queue_Now.title}」**の再生を開始しました`;
@@ -17,6 +19,7 @@ async function notice_playing(queue_Now,guildId,playing_channel) {
 }
 
 async function notice_vc(guildId,type,vc_channel) {
+    if(vc_channel === null) return;
     const guild = await client.guilds.fetch(guildId);
     const guildName = guild.name
     if(type === "Ready"){
@@ -30,6 +33,7 @@ async function notice_vc(guildId,type,vc_channel) {
 }
 
 async function join_left(guild,type,join_left_channel) {
+    if(join_left_channel === null) return;
     const guildName = guild.name
     if(type === "join"){
         const logMessage = `**${guildName}**に参加しましたしました`;
@@ -42,18 +46,22 @@ async function join_left(guild,type,join_left_channel) {
 }
 
 async function error_log(error,error_channel) {
+    if(error_channel === null) return;
     return await error_channel.send(`${error}`);
 }
 
 async function express_error(err,express_error_channel) {
+    if(express_error_channel === null) return;
     return await express_error_channel.send(`ExpressError: ${err}`);
 }
 
 async function discordapi_error(error,discordapi_error_channel) {
+    if(discordapi_error_channel === null) return;
     return await discordapi_error_channel.send(`DiscordAPIError: ${error}`);
 }
 
 async function youtube_error(error,youtube_error_channel) {
+    if(youtube_error_channel === null) return;
     return await youtube_error_channel.send(`YouTubeAPIError: ${error}`);
 }
 
