@@ -1,48 +1,15 @@
 const moment = require('moment');
 require('dotenv').config();
 const { youtube_error } = require('../package/notification')
-const YouTubeAPIKey1 = process.env.YouTube_API_KEY1
-const YouTubeAPIKey2 = process.env.YouTube_API_KEY2
-const YouTubeAPIKey3 = process.env.YouTube_API_KEY3
-const YouTubeAPIKey4 = process.env.YouTube_API_KEY4
-const YouTubeAPIKey5 = process.env.YouTube_API_KEY5
-const YouTubeAPIKey6 = process.env.YouTube_API_KEY6
-const YouTubeAPIKey7 = process.env.YouTube_API_KEY7
-const YouTubeAPIKey8 = process.env.YouTube_API_KEY8
-let Key_number = 1
+const YouTubeAPIKey = process.env.YouTube_API_KEY.split(",")
+let Key_number = 0
 async function YouTube_API_Key() {
-    if(Key_number === 1){
-        Key_number++
-        return YouTubeAPIKey1
+    if(Key_number === YouTubeAPIKey.length){
+        Key_number = 0
     }
-    if(Key_number === 2){
-        Key_number++
-        return YouTubeAPIKey2
-    }
-    if(Key_number === 3){
-        Key_number++
-        return YouTubeAPIKey3
-    }
-    if(Key_number === 4){
-        Key_number++
-        return YouTubeAPIKey4
-    }
-    if(Key_number === 5){
-        Key_number++
-        return YouTubeAPIKey5
-    }
-    if(Key_number === 6){
-        Key_number++
-        return YouTubeAPIKey6
-    }
-    if(Key_number === 7){
-        Key_number++
-        return YouTubeAPIKey7
-    }
-    if(Key_number === 8){
-        Key_number = 1
-        return YouTubeAPIKey8
-    }
+    const YouTube_API_key = YouTubeAPIKey[Key_number]
+    Key_number++
+    return YouTube_API_key
 }
 
 async function playlist(playlistId,youtube_error_channel) {
