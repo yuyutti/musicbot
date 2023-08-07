@@ -42,7 +42,7 @@ const filePath = path.join(__dirname, '/data/guildLanguage.json');
 
 const adminId = process.env.admin_id.split(",");
 
-let command_channel, playing_channel, vc_channel, join_left_channel, error_channel, express_error_channel, discordapi_error_channel, playing_error_channel;
+let command_channel, playing_channel, vc_channel, join_left_channel, error_channel, express_error_channel, discordapi_error_channel;
 
 let queues = {};
 let loopStatus = {};
@@ -174,7 +174,6 @@ client.on('ready', async () => {
         error_channel = management_guildId.channels.cache.get(process.env.error_channel.toString());
         express_error_channel = management_guildId.channels.cache.get(process.env.express_error_channel.toString());
         discordapi_error_channel = management_guildId.channels.cache.get(process.env.discordapi_error_channel.toString());
-        playing_error_channel = management_guildId.channels.cache.get(process.env.playing_error_channel.toString());
         youtube_error_channel = management_guildId.channels.cache.get(process.env.youtube_error_channel.toString());
         if (!command_channel){
             console.log('command_channel is defined wrong in .env file')
@@ -203,10 +202,6 @@ client.on('ready', async () => {
         if (!discordapi_error_channel){
             console.log('discordapi_error_channel is defined wrong in .env file')
             discordapi_error_channel = null;
-        }
-        if (!playing_error_channel){
-            console.log('playing_error_channel is defined wrong in .env file')
-            playing_error_channel = null;
         }
         if (!youtube_error_channel){
             console.log('youtube_error_channel is defined wrong in .env file')
