@@ -7,6 +7,10 @@
 //いずれやりたいこと
 // ・Spotify対応
 
+// 早急にやるべきことリスト
+// ・週番号でデーターを保存しているから年を跨いだらヤバイ = YYYY-W形式にする
+// ・とりあえず週のデータだけグラフで見れるけど週が変わるとみずらくなる and 月、年が未完成
+
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, InteractionCollector } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
