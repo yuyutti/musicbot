@@ -15,8 +15,10 @@ const { notice_command, notice_playing, join_left, notice_vc, error_log, express
 const resxData = require('./src/package/resx-parse');
 const fs = require('fs');
 const path = require('path');
+const { promisify } = require('util');
 const express = require('express')
 const app = express()
+app.use(express.static('public'));
 require('dotenv').config();
 
 const client = new Client({ intents: [Intents.FLAGS.GUILDS, Intents.FLAGS.GUILD_MESSAGES, Intents.FLAGS.GUILD_VOICE_STATES] });
@@ -47,7 +49,8 @@ const buttonRow = new MessageActionRow().addComponents(previousButton, nextButto
 const token = process.env.DISCORD_TOKEN
 const prefix = process.env.DISCORD_PREFIX
 
-const filePath = path.join(__dirname, '/data/guildLanguage.json');
+const Language_data = path.join(__dirname, '/data/guildLanguage.json');
+const use_data = path.join(__dirname, '/data/use.json');
 
 const adminId = process.env.admin_id.split(",");
 
@@ -57,6 +60,8 @@ let queues = {};
 let loopStatus = {};
 let autoplayStatus = {};
 let voiceConnections = {};
+
+let useData = {};
 
 app.get('/lang', async (req, res) => {
     const existingLocales = await guildLanguage();
@@ -144,6 +149,18 @@ app.get('/vc', (req, res) => {
     }
 });
 
+app.get('/data', (req, res) => {
+    try {
+        const data = fs.readFileSync(use_data, 'utf8');
+        const parsedData = JSON.parse(data);
+        res.json(parsedData);
+    } catch (err) {
+        console.log(err)
+        express_error(err, express_error_channel)
+        res.status(500).send('Internal Server Error');
+    }
+});
+
 client.on('ready', async () => {
     updateActivity()
     console.log(`Logged in as ${client.user.tag}`);
@@ -164,11 +181,15 @@ client.on('ready', async () => {
             serverLocales[guild.id] = guild.preferredLocale;
         }
     });
-    fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
+
+    fs.writeFile(Language_data, JSON.stringify(serverLocales, null, 2), (err) => {
         if (err) {
             error_log(err, error_channel)
         }
     });
+
+    const data = fs.readFileSync(use_data, 'utf8');
+    useData = JSON.parse(data);
 
     if (process.env.enable_logging === 'true') {
         const management_guildId = client.guilds.cache.get(process.env.management_guildId.toString());
@@ -223,7 +244,22 @@ client.on('messageCreate', async (message) => {
     if (!message.content.startsWith(prefix) || message.author.bot) return;
     const command = message.content.slice(prefix.length).trim().split(/ +/)[0].toLowerCase();
     const guildId = message.guild.id;
+    const guildName = message.guild.name;
     notice_command(guildId, message, prefix, command, command_channel)
+
+    const now = new Date();
+    const weekNumber = getWeekNumber(now);
+    
+    if (!useData[guildId]) {
+        useData[guildId] = { name: guildName, data: {} };
+    }
+
+    if (!useData[guildId].data[weekNumber]) {
+        useData[guildId].data[weekNumber] = 0;
+    }
+
+    useData[guildId].data[weekNumber]++;
+    await saveData(useData);
 
     const gildLang = await guildLanguage()
     let lang = gildLang[guildId]
@@ -245,7 +281,7 @@ client.on('messageCreate', async (message) => {
                 serverLocales[guild.id] = "en-US";
             }
         }
-        fs.writeFile(filePath, JSON.stringify(serverLocales, null, 2), (err) => {
+        fs.writeFile(Language_data, JSON.stringify(serverLocales, null, 2), (err) => {
             if (err) {
                 return error_log(err, error_channel)
             }
@@ -253,19 +289,25 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "kick") {
-        const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if (!arg) { return console.log("arg is not found") }
         return disconnect(arg)
     }
 
     if (command === "adminlang") {
-        if (adminId.includes(message.author.id)) {
+        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        const arg = message.content.slice(prefix.length + command.length + 1).trim();
             const args = arg.split(/ +/);
             const arg1 = args[0];
             const arg2 = args[1];
             await setLanguage(message, arg1, arg2)
-        }
+    }
+
+    if (command === "save") {
+        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        await saveData(useData);
+        message.channel.send("データを保存しました")
     }
 
     if (command === "lang") {
@@ -803,9 +845,18 @@ function formatDuration(duration) {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 }
+function getWeekNumber(date) {
+    const target = new Date(date.getTime());
+    target.setDate(target.getDate() + (7 - target.getDay()));
+
+    const yearStart = new Date(target.getFullYear(), 0, 1);
+    const weekNumber = Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
+
+    return weekNumber;
+}
 async function guildLanguage() {
     try {
-        const data = await fs.readFileSync(filePath, 'utf-8');
+        const data = await fs.readFileSync(Language_data, 'utf-8');
         return JSON.parse(data);
     }
     catch (err) {
@@ -816,7 +867,7 @@ async function guildLanguage() {
 async function setLanguage(message, guildId, newLang) {
     const existingLocales = await guildLanguage();
     existingLocales[guildId] = newLang;
-    fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
+    fs.writeFile(Language_data, JSON.stringify(existingLocales, null, 2), (err) => {
         if (err) {
             return error_log(err, error_channel)
         } else {
@@ -862,7 +913,7 @@ client.on('guildCreate', async (guild) => {
     if (japaneseRegex.test(guild.name)) {
         const existingLocales = await guildLanguage();
         existingLocales[guild.id] = "ja";
-        fs.writeFile(filePath, JSON.stringify(existingLocales, null, 2), (err) => {
+        fs.writeFile(Language_data, JSON.stringify(existingLocales, null, 2), (err) => {
             if (err) {
                 return error_log(err, error_channel)
             }
@@ -886,3 +937,52 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection:', reason);
     return error_log(reason, error_channel)
 });
+
+const writeFileAsync = promisify(fs.writeFile);
+
+class WriteQueue {
+    constructor() {
+        this.queue = [];
+        this.isWriting = false;
+    }
+
+    async enqueue(data) {
+        return new Promise(async (resolve, reject) => {
+            this.queue.push({ data, resolve, reject });
+            if (!this.isWriting) {
+                this.isWriting = true;
+                await this.writeNext();
+            }
+        });
+    }
+
+    async writeNext() {
+        const entry = this.queue.shift();
+        if (entry) {
+            try {
+                await writeFileAsync(use_data, JSON.stringify(entry.data, null, 4));
+                entry.resolve();
+            } catch (error) {
+                entry.reject(error);
+            } finally {
+                await this.writeNext();
+            }
+        } else {
+            this.isWriting = false;
+        }
+    }
+
+    async autoSaveData() {
+        while (true) {
+            await new Promise(resolve => setTimeout(resolve, 10 * 60 * 1000));
+            await this.enqueue(useData);
+        }
+    }
+}
+
+const writeQueue = new WriteQueue();
+writeQueue.autoSaveData();
+
+async function saveData(data) {
+    await writeQueue.enqueue(data);
+}

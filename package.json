@@ -9,6 +9,7 @@
     "libsodium-wrappers": "^0.7.11",
     "moment": "^2.29.4",
     "path": "^0.12.7",
+    "util": "^0.12.5",
     "xml2js": "^0.6.0",
     "ytdl-core": "^4.11.5"
   }
