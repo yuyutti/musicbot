@@ -1,3 +1,12 @@
+// やることリスト
+// ・隠しコマンドでpsの件数を指定できるようにする
+// ・/@channel/videosで全ての動画を読み込む
+// ・初期の段階で動画の時間を取得する
+// ・!queueですべて再生するの必要な時間を表示する
+
+//いずれやりたいこと
+// ・Spotify対応
+
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, InteractionCollector } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
