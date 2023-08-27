@@ -90,7 +90,6 @@ async function drawChart() {
     const guildIds = Object.keys(useData);
     weekNumbers = Object.keys(useData[guildIds[0]].data);
 
-    console.log(weekNumbers)
     const now = new Date();
     const yearWeek = await getYearWeek(now);
 
