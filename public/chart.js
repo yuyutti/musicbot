@@ -104,12 +104,14 @@ async function drawChart() {
     const datasets = guildIds.map(guildId => {
         const guildName = useData[guildId].name;
         const data = weekNumbers.map(() => useData[guildId].data[currentWeekNumber] || 0);
+        const isAllZeros = data.every(value => value === 0);
         return {
             label: `${guildName}`,
             data: data,
             backgroundColor: getRandomColor(),
             borderColor: 'rgba(0, 0, 0, 0.5)',
-            borderWidth: 1
+            borderWidth: 1,
+            hidden: isAllZeros
         };
     });
 
