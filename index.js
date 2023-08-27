@@ -20,6 +20,7 @@ const resxData = require('./src/package/resx-parse');
 const fs = require('fs');
 const path = require('path');
 const { promisify } = require('util');
+const cron = require('node-cron');
 const express = require('express')
 const app = express()
 app.use(express.static('public'));
@@ -194,6 +195,8 @@ client.on('ready', async () => {
 
     const data = fs.readFileSync(use_data, 'utf8');
     useData = JSON.parse(data);
+
+    useDataSetup()
 
     if (process.env.enable_logging === 'true') {
         const management_guildId = client.guilds.cache.get(process.env.management_guildId.toString());
@@ -881,6 +884,24 @@ async function setLanguage(message, guildId, newLang) {
         }
     });
 }
+async function useDataSetup() {
+    const guilds = client.guilds.cache;
+    const now = new Date();
+    const yearWeek = await getYearWeek(now);
+
+    for (const guild of guilds.values()) {
+        const guildId = guild.id;
+
+        if (!useData[guildId]) {
+            useData[guildId] = { name: guild.name, data: {} };
+        }
+
+        if (!useData[guildId].data[yearWeek]) {
+            useData[guildId].data[yearWeek] = 0;
+        }
+    }
+    await saveData(useData);
+}
 async function disconnect(guildId) {
     if (voiceConnections[guildId] && !voiceConnections[guildId].destroyed) {
         await voiceConnections[guildId].disconnect();
@@ -992,3 +1013,7 @@ writeQueue.autoSaveData();
 async function saveData(data) {
     await writeQueue.enqueue(data);
 }
+
+cron.schedule('0 0 * * 0', () => {
+    useDataSetup()
+});
