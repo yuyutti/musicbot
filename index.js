@@ -252,17 +252,17 @@ client.on('messageCreate', async (message) => {
     notice_command(guildId, message, prefix, command, command_channel)
 
     const now = new Date();
-    const weekNumber = getWeekNumber(now);
+    const yearWeek = await getYearWeek(now);
     
     if (!useData[guildId]) {
         useData[guildId] = { name: guildName, data: {} };
     }
 
-    if (!useData[guildId].data[weekNumber]) {
-        useData[guildId].data[weekNumber] = 0;
+    if (!useData[guildId].data[yearWeek]) {
+        useData[guildId].data[yearWeek] = 0;
     }
 
-    useData[guildId].data[weekNumber]++;
+    useData[guildId].data[yearWeek]++;
     await saveData(useData);
 
     const gildLang = await guildLanguage()
@@ -849,14 +849,16 @@ function formatDuration(duration) {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 }
-function getWeekNumber(date) {
-    const target = new Date(date.getTime());
-    target.setDate(target.getDate() + (7 - target.getDay()));
+async function getYearWeek(date) {
+    const timeZoneOffset = 9 * 60;
+    const adjustedDate = new Date(date.getTime() + timeZoneOffset * 60 * 1000);
 
-    const yearStart = new Date(target.getFullYear(), 0, 1);
-    const weekNumber = Math.ceil((((target - yearStart) / 86400000) + 1) / 7);
-
-    return weekNumber;
+    const year = adjustedDate.getFullYear();
+    const dayOfWeek = adjustedDate.getDay();
+    const daysToAdd = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+    const dateForCalculation = new Date(adjustedDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    const week = String(Math.ceil(((dateForCalculation - new Date(year, 0, 1)) / 86400000 + 1) / 7)).padStart(2, '0');
+    return `${year}-${week}`;
 }
 async function guildLanguage() {
     try {
