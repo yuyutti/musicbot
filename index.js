@@ -435,6 +435,7 @@ client.on('messageCreate', async (message) => {
                         if(!searchResult) searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
                         if(!searchResult) {
                             message.channel.send(`${resxdata.data[12].value} ${trackTitle} ${resxdata.data[11].value}`)
+                            continue;
                         }
                         const queueItem = { url: searchResult.url, title: searchResult.title, sp_url: playlistItems.urls[i] };
                         if (i === 0) {
