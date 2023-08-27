@@ -1,4 +1,5 @@
 const moment = require('moment');
+const cheerio = require('cheerio');
 require('dotenv').config();
 const { youtube_error } = require('../package/notification')
 const YouTubeAPIKey = process.env.YouTube_API_KEY.split(",")
@@ -48,7 +49,7 @@ async function playlist(playlistId,youtube_error_channel) {
             videoUrls = videoUrls.concat(videos.map(video => `https://www.youtube.com/watch?v=${video.snippet.resourceId.videoId}`));
             videoTitles = videoTitles.concat(videos.map(video => video.snippet.title));
             iterations++;
-        } while (nextPageToken && iterations < 40);
+        } while (nextPageToken && iterations < 4);
         totalResults = videoUrls.length;
         mix = false
         return { videoUrls, videoTitles, totalResults, mix };
@@ -71,6 +72,41 @@ async function search(searchQuery,maxResults) {
 
         return { videoUrls, videoTitles, totalResults };
     } catch (error) {
+        console.error(error);
+        youtube_error(error,youtube_error_channel)
+        return null;
+    }
+}
+
+async function Spotify_playlist_search(searchQuery,youtube_error_channel){
+    try{
+        const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`);
+        const html = await response.text();
+        const $ = cheerio.load(html);
+    
+        const scripts = $('script').toArray();
+        let ytInitialDataScript = null;
+        for (const script of scripts) {
+            const content = $(script).html();
+            if (content.includes('ytInitialData')) {
+                ytInitialDataScript = content;
+                break;
+            }
+        }
+        if (ytInitialDataScript) {
+            const start = ytInitialDataScript.indexOf('{');
+            const end = ytInitialDataScript.lastIndexOf(';');
+            if (start !== -1 && end !== -1) {
+                const ytInitialDataString = ytInitialDataScript.substring(start, end);
+                const ytInitialData = JSON.parse(ytInitialDataString);
+                const json = ytInitialData.contents.twoColumnSearchResultsRenderer.primaryContents.sectionListRenderer.contents[0].itemSectionRenderer.contents[1].videoRenderer
+                const url = `https://www.youtube.com/watch?v=${json.videoId}`
+                const title = json.title.runs[0].text
+                return { title, url };
+            }
+        }
+    }
+    catch(error){
         console.error(error);
         youtube_error(error,youtube_error_channel)
         return null;
@@ -134,4 +170,4 @@ function getRandomNumber() {
     return Math.floor(Math.random() * (10 - 1 + 1)) + 1;
 }
 
-module.exports = { playlist, NextPlay, search, getInfo }
+module.exports = { playlist, NextPlay, search, getInfo, Spotify_playlist_search }

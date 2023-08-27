@@ -14,7 +14,8 @@
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, InteractionCollector } = require('discord.js');
 const { joinVoiceChannel, createAudioResource, AudioPlayerStatus, createAudioPlayer, getVoiceConnection, VoiceConnectionStatus } = require('@discordjs/voice');
 const ytdl = require('ytdl-core');
-const { playlist, NextPlay, search, getInfo } = require('./src/api/YouTubeAPI');
+const { playlist, NextPlay, search, getInfo, Spotify_playlist_search } = require('./src/api/YouTubeAPI');
+const { Spotify_search, Spotify_Playlist } = require('./src/api/SpotifyAPI');
 const { notice_command, notice_playing, join_left, notice_vc, error_log, express_error, discordapi_error } = require('./src/package/notification');
 const resxData = require('./src/package/resx-parse');
 const fs = require('fs');
@@ -419,16 +420,46 @@ client.on('messageCreate', async (message) => {
                 queue_List(queueItem, message)
                 return;
             }
+            if(arg.includes("spotify.com")){
+                if(arg.includes("playlist")){
+                    message.channel.send("loading...");
+                    const playlistId = arg.match(/playlist\/(\w+)/)[1];
+                    const playlistItems = await Spotify_Playlist(playlistId)
+                    const guildId = message.guild.id;
+                    const queue = queues[guildId] || [];
+                    queues[guildId] = queue;
+                    let i = 0
+                    const resxdata = resxData[lang].root.youtubeapi[0]
+                    for (const trackTitle of playlistItems.name) {
+                        searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
+                        if(!searchResult) searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
+                        if(!searchResult) {
+                            message.channel.send(`${resxdata.data[12].value} ${trackTitle} ${resxdata.data[11].value}`)
+                        }
+                        const queueItem = { url: searchResult.url, title: searchResult.title, sp_url: playlistItems.urls[i] };
+                        if (i === 0) {
+                            queue_List(queueItem, message);
+                        } else {
+                            queue.push(queueItem);
+                        }
+                        i++
+                    }
+                    message.channel.send(`${resxData[lang].root.playsearch[0].data[3].value}`)
+                }
+                return;
+            }
             message.channel.send(`${resxData[lang].root.play[0].data[5].value}`)
         }
         else {
-            const SearchResults = await search(arg, 1, youtube_error_channel)
+            const search_result = await Spotify_search(arg)
+            const SearchResults = await search(search_result.name, 1, youtube_error_channel)
             if (SearchResults.videoTitles.length > 0) {
                 const selectedSong = {
-                    title: SearchResults.videoTitles[0],
-                    url: SearchResults.videoUrls[0]
+                    title: search_result.name,
+                    url: SearchResults.videoUrls[0],
+                    sp_url: search_result.url
                 };
-                const queueItem = { url: selectedSong.url, title: selectedSong.title }
+                const queueItem = { url: selectedSong.url, title: selectedSong.title, sp_url: selectedSong.sp_url }
                 queue_List(queueItem, message)
             }
             else {
@@ -764,11 +795,15 @@ async function play(message) {
         if (newState.status === AudioPlayerStatus.Playing) {
             try {
                 const info = await getInfo(queue_Now.url);
-                const title = info.title;
+                const title = queue_Now.title;
                 const duration = info.duration;
                 const embed = new MessageEmbed()
-                    .setTitle(`:musical_note: **Playing Now : ${title}**`)
-                    .setDescription(`:alarm_clock: **${resxData[lang].root.play_[0].data[1].value} : ${formatDuration(duration)}**`)
+                    .setDescription(
+                        `:musical_note: **Playing Now ${
+                            queue_Now.sp_url ? `: <:Spotify:1145234821342310551> - [${title}](${queue_Now.sp_url})` : `: ${title}`
+                        }**\n\n` +
+                        `:alarm_clock: **${resxData[lang].root.play_[0].data[1].value} : ${formatDuration(duration)}**`
+                    ) 
                     .setColor('RED');
                 message.channel.send({ embeds: [embed] });
             } catch (error) {

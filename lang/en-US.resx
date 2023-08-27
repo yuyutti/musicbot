@@ -251,6 +251,12 @@
         <data name="playlist">
             <value>"✔" to add a playlist | "✖" to add only the first song</value>
         </data>
+        <data name="search Error">
+            <value></value>
+        </data>
+        <data name="search Error - us">
+            <value>Failed to add</value>
+        </data>
     </youtubeapi>
     <lang>
         <data name="lang -1">

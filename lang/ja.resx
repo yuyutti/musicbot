@@ -245,6 +245,9 @@
         <data name="playlist">
             <value>再生リストを追加する場合は「✔」 | 最初の曲のみ追加する場合は「✖」</value>
         </data>
+        <data name="search Error">
+            <value>の追加に失敗しました</value>
+        </data>
     </youtubeapi>
     <lang>
         <data name="lang -1">
