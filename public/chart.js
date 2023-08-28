@@ -48,8 +48,9 @@ async function getYearWeek(date) {
 
     const year = adjustedDate.getFullYear();
     const dayOfWeek = adjustedDate.getDay();
-    const daysToAdd = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-    const dateForCalculation = new Date(adjustedDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
+    const daysToSubtract = dayOfWeek === 0 ? 0 : dayOfWeek;
+    const dateForCalculation = new Date(adjustedDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+
     const week = String(Math.ceil(((dateForCalculation - new Date(year, 0, 1)) / 86400000 + 1) / 7)).padStart(2, '0');
     return `${year}-${week}`;
 }
@@ -92,6 +93,7 @@ async function drawChart() {
 
     const now = new Date();
     const yearWeek = await getYearWeek(now);
+    console.log(yearWeek)
 
     if(flag){
         if(weekNumbers.includes(yearWeek)){
