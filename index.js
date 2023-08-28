@@ -889,14 +889,13 @@ function formatDuration(duration) {
     }
 }
 async function getYearWeek(date) {
-    const timeZoneOffset = 9 * 60;
+    const timeZoneOffset = 9 * 60; 
     const adjustedDate = new Date(date.getTime() + timeZoneOffset * 60 * 1000);
 
     const year = adjustedDate.getFullYear();
-    const dayOfWeek = adjustedDate.getDay();
-    const daysToAdd = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-    const dateForCalculation = new Date(adjustedDate.getTime() + daysToAdd * 24 * 60 * 60 * 1000);
-    const week = String(Math.ceil(((dateForCalculation - new Date(year, 0, 1)) / 86400000 + 1) / 7)).padStart(2, '0');
+    const firstDayOfYear = new Date(year, 0, 1).getDay();
+    const adjustment = firstDayOfYear > 1 && firstDayOfYear < 5 ? -firstDayOfYear + 1 : 0;
+    const week = String(Math.ceil((adjustedDate - new Date(year, 0, 1 + adjustment)) / 86400000 / 7)).padStart(2, '0');
     return `${year}-${week}`;
 }
 async function guildLanguage() {
