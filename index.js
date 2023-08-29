@@ -4,11 +4,7 @@
 // ・初期の段階で動画の時間を取得する
 // ・!queueですべて再生するの必要な時間を表示する
 
-//いずれやりたいこと
-// ・Spotify対応
-
 // 早急にやるべきことリスト
-// ・週番号でデーターを保存しているから年を跨いだらヤバイ = YYYY-W形式にする
 // ・とりあえず週のデータだけグラフで見れるけど週が変わるとみずらくなる and 月、年が未完成
 
 const { Client, Intents, MessageEmbed, MessageActionRow, MessageButton, InteractionCollector } = require('discord.js');
@@ -276,7 +272,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "guildlang") {
-        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
         const japaneseRegex = /[\u3040-\u30FF\uFF00-\uFFEF\u4E00-\u9FFF]/;
         const existingLocales = await guildLanguage();
         let serverLocales = {};
@@ -297,14 +293,14 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "kick") {
-        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
         if (!arg) { return console.log("arg is not found") }
         return disconnect(arg)
     }
 
     if (command === "adminlang") {
-        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
         const arg = message.content.slice(prefix.length + command.length + 1).trim();
             const args = arg.split(/ +/);
             const arg1 = args[0];
@@ -313,7 +309,7 @@ client.on('messageCreate', async (message) => {
     }
 
     if (command === "save") {
-        if (!adminId.includes(message.author.id)) { return console.log("kick command is access deny") }
+        if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
         await saveData(useData);
         message.channel.send("データを保存しました")
     }
@@ -357,6 +353,13 @@ client.on('messageCreate', async (message) => {
                 queue.push(queueItem)
             }
             return;
+        }
+        if(arg === "こえくん&むいくん はなたば"){
+            if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
+            const music_file = './src/sound/coe.xhotoke_hanataba.wav';
+            const source = 'https://www.youtube.com/watch?v=mZGt9tl8DKg'
+            const queueItem = { url: music_file, title: "こえくん&むいくん ハナタバ", source: source }
+            return queue_List(queueItem, message)
         }
         if (arg.startsWith('https')) {
             if (arg.includes("youtube.com") || arg.includes("youtu.be")) {
@@ -742,6 +745,16 @@ async function queue_List(queueItem, message) {
     if (!(lang in resxData)) {
         lang = 'en-US';
     }
+
+    if (!queueItem.url.includes('http://') && !queueItem.url.includes('https://')){
+        if (queue.length === 0) {
+            queue.push(queueItem);
+            return localPlay(message);
+        } else {
+            queue.push(queueItem);
+            return message.channel.send(`${resxData[lang].root.queue_list[0].data[0].value}\n${resxData[lang].root.queue_list[0].data[1].value}${queueItem.title}`);
+        }
+    }
     if (queue.length === 0) {
         queue.push(queueItem);
         play(message);
@@ -832,6 +845,9 @@ async function play(message) {
             }
             queue.shift()
             if (queue.length > 0) {
+                if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+                    return await localPlay(message);
+                }
                 play(message);
             } else {
                 return setTimeout(() => {
@@ -851,9 +867,113 @@ async function play(message) {
     });
 }
 
+async function localPlay(message){
+    const guildId = message.guild.id;
+    const queue = queues[guildId];
+    const gildLang = await guildLanguage()
+    let lang = gildLang[guildId]
+    if (!(lang in resxData)) {
+        lang = 'en-US';
+    }
+    if (!queue || queue.length === 0) {
+        return disconnect(guildId);
+    }
+    if (!message.member.voice.channel) {
+        message.channel.send(`${resxData[lang].root.play_[0].data[0].value}`);
+        return delete queues[guildId];
+    }
+    voiceConnections[guildId] = joinVoiceChannel({
+        channelId: message.member.voice.channel.id,
+        guildId: message.guild.id,
+        adapterCreator: message.guild.voiceAdapterCreator,
+    });
+    loopStatus[guildId] = loopStatus[guildId] ? loopStatus[guildId] : false;
+    autoplayStatus[guildId] = autoplayStatus[guildId] ? autoplayStatus[guildId] : false;
+    const connection = getVoiceConnection(guildId);
+    connection.removeAllListeners(VoiceConnectionStatus.Ready);
+    connection.removeAllListeners(VoiceConnectionStatus.Disconnected);
+    const queue_Now = queue.shift()
+    queue.unshift(queue_Now);
+    const player = createAudioPlayer();
+    await voiceConnections[guildId].subscribe(player);
+    notice_playing(queue_Now, guildId, playing_channel)
+    const stream = fs.createReadStream(queue_Now.url);
+    const resource = createAudioResource(stream, {
+        inputType: "webm/opus",
+        bitrate: 64,
+        inlineVolume: true
+    });
+    resource.volume.setVolume(0.2);
+    player.play(resource);
+    player.once('stateChange', async (oldState, newState) => {
+        if (newState.status === AudioPlayerStatus.Playing) {
+            const metadata = await fetchMetadata(queue_Now.url);
+            try {
+                const embed = new MessageEmbed()
+                    .setDescription(
+                        `:musical_note: **Playing Now ${queue_Now.title}**\n\n`+
+                        `:alarm_clock: **${resxData[lang].root.play_[0].data[1].value} : ${formatDuration(Math.floor(metadata.format.duration))}**`
+                    ) 
+                    .setColor('RED');
+                message.channel.send({ embeds: [embed] });
+            } catch (error) {
+                message.channel.send(`${resxData[lang].root.play_[0].data[2].value}`)
+                return discordapi_error(error, discordapi_error_channel)
+            }
+        }
+    });
+    player.on('stateChange', async (oldState, newState) => {
+        if (newState.status === AudioPlayerStatus.Idle) {
+            if (loopStatus[guildId]) {
+                return localPlay(message);
+            }
+            if (queue.length === 1) {
+                if (autoplayStatus[guildId]) {
+                    const queueItem = await processQueue(message, guildId)
+                    if (!queueItem) {
+                        await message.channel.send(`${resxData[lang].root.play_[0].data[3].value}`)
+                        await disconnect(guildId)
+                    }
+                    queue.push(queueItem);
+                    queue.shift();
+                    return await play(message);
+                }
+            }
+            queue.shift()
+            if (queue.length > 0) {
+                if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+                    return await localPlay(message);
+                }
+                play(message);
+            } else {
+                return setTimeout(() => {
+                    disconnect(guildId)
+                }, 1000);
+            }
+        }
+    });
+    connection.on(VoiceConnectionStatus.Ready, () => {
+        var type = 'Ready'
+        return notice_vc(guildId, type, vc_channel)
+    });
+    connection.on(VoiceConnectionStatus.Disconnected, async () => {
+        var type = 'Disconnected'
+        notice_vc(guildId, type, vc_channel)
+        return await disconnect(guildId)
+    });
+}
+
+async function fetchMetadata(filePath) {
+    const musicMetadata = await import('music-metadata');
+    return musicMetadata.parseFile(filePath);
+}
+
 async function processQueue(message, guildId) {
     const queue = queues[guildId];
-    const VideoURL = queue[0].url;
+    let VideoURL = queue[0].url;
+    if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+        VideoURL = queue[0].source;
+    }
     let retryCount = 0;
     while (retryCount < 10) {
         const NextPlayVideoItem = await NextPlay(VideoURL, youtube_error_channel)
