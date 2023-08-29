@@ -272,4 +272,15 @@
             <value>Changed the language of the BOT to English</value>
         </data>
     </lang>
+    <play_warning>
+        <data name="warning">
+            <value>Video could not be played because it is age-restricted or inappropriate by YouTube</value>
+        </data>
+        <data name="not queue">
+            <value>Playback stopped and disconnected from VC because no video was added to the queue</value>
+        </data>
+        <data name="queue">
+            <value>Unable to play, will play next song</value>
+        </data>
+    </play_warning>
 </root>

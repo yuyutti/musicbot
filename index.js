@@ -862,6 +862,19 @@ async function play(message) {
             }
         }
     });
+    player.on('error', async(error) => {
+        if (queue.length > 0) {
+            if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+                return localPlay(message);
+            }
+            play(message);
+            return message.channel.send(`${resxData[lang].root.play_warning[0].data[0].value}\n${resxData[lang].root.play_warning[0].data[2].value}\nPlaying Nowが2つでるのは仕様だよ！`)
+        }
+        else {
+            disconnect(guildId)
+            return message.channel.send(`${resxData[lang].root.play_warning[0].data[0].value}\n${resxData[lang].root.play_warning[0].data[1].value}`);
+        }
+    });
     connection.on(VoiceConnectionStatus.Ready, () => {
         var type = 'Ready'
         return notice_vc(guildId, type, vc_channel)
@@ -1117,7 +1130,7 @@ client.on('guildDelete', (guild) => {
 client.login(token);
 app.listen(3010)
 
-process.on('uncaughtException', (error) => {
+process.on('uncaughtException', async(error) => {
     console.error('Uncaught Exception:', error);
     return error_log(error, error_channel)
 });

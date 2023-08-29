@@ -263,4 +263,15 @@
             <value>BOTの言語を日本語に変更しました</value>
         </data>
     </lang>
+    <play_warning>
+        <data name="warning">
+            <value>YouTubeにより年齢制限がかけられている動画、もしくは不適切な動画のため、再生できませんでした</value>
+        </data>
+        <data name="not queue">
+            <value>キューに動画が追加されていないため再生を中止し、VCから切断しました</value>
+        </data>
+        <data name="queue">
+            <value>再生できないため、次の曲を再生します</value>
+        </data>
+    </play_warning>
 </root>
