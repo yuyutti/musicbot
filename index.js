@@ -655,6 +655,9 @@ client.on('messageCreate', async (message) => {
                 for (let i = 0; i < int; i++) {
                     queue.shift();
                 }
+                if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+                    return await localPlay(message);
+                }
                 return play(message);
             }
             else {
@@ -663,6 +666,9 @@ client.on('messageCreate', async (message) => {
         }
         if (queue && queue.length > 1) {
             queue.shift();
+            if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
+                return await localPlay(message);
+            }
             return play(message);
         }
         else {
