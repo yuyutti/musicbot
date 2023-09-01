@@ -456,7 +456,7 @@ client.on('messageCreate', async (message) => {
         }
         else {
             const search_result = await Spotify_search(arg)
-            const SearchResults = await search(search_result.name, 1, youtube_error_channel)
+            const SearchResults = await search(arg, 1, youtube_error_channel)
             if (SearchResults.videoTitles.length > 0) {
                 const selectedSong = {
                     title: search_result.name,
@@ -799,11 +799,16 @@ async function play(message) {
     const player = createAudioPlayer();
     await voiceConnections[guildId].subscribe(player);
     notice_playing(queue_Now, guildId, playing_channel)
-    const stream = ytdl(ytdl.getURLVideoID(queue_Now.url), {
-        filter: format => format.audioCodec === 'opus',
-        quality: 'highestaudio',
+
+    const info = await ytdl.getInfo(ytdl.getURLVideoID(queue_Now.url));
+    let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
+    if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
+    if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+    const stream = ytdl.downloadFromInfo(info, {
+        format: format,
         highWaterMark: 64 * 1024 * 1024,
     });
+
     const resource = createAudioResource(stream, {
         inputType: "webm/opus",
         bitrate: 64,
@@ -863,6 +868,7 @@ async function play(message) {
         }
     });
     player.on('error', async(error) => {
+        console.log(error)
         if (queue.length > 0) {
             if (!queue[0].url.includes('http://') && !queue[0].url.includes('https://')){
                 return localPlay(message);
@@ -1018,6 +1024,8 @@ function paginateQueue(queue) {
 }
 
 function formatDuration(duration) {
+    console.log(duration)
+    if(duration === 0) return " Live Stream"
     const hours = Math.floor(duration / 3600);
     const minutes = Math.floor((duration % 3600) / 60);
     const seconds = duration % 60;
