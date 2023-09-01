@@ -799,7 +799,6 @@ async function play(message) {
     const player = createAudioPlayer();
     await voiceConnections[guildId].subscribe(player);
     notice_playing(queue_Now, guildId, playing_channel)
-
     const info = await ytdl.getInfo(ytdl.getURLVideoID(queue_Now.url));
     let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
     if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
@@ -808,7 +807,6 @@ async function play(message) {
         format: format,
         highWaterMark: 64 * 1024 * 1024,
     });
-
     const resource = createAudioResource(stream, {
         inputType: "webm/opus",
         bitrate: 64,
@@ -1024,7 +1022,6 @@ function paginateQueue(queue) {
 }
 
 function formatDuration(duration) {
-    console.log(duration)
     if(duration === 0) return " Live Stream"
     const hours = Math.floor(duration / 3600);
     const minutes = Math.floor((duration % 3600) / 60);
