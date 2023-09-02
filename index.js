@@ -1032,14 +1032,11 @@ function formatDuration(duration) {
         return `${minutes}:${seconds.toString().padStart(2, '0')}`;
     }
 }
-async function getYearWeek(date) {
-    const timeZoneOffset = 9 * 60; 
-    const adjustedDate = new Date(date.getTime() + timeZoneOffset * 60 * 1000);
-
-    const year = adjustedDate.getFullYear();
+function getYearWeek(date) {
+    const year = date.getFullYear();
     const firstDayOfYear = new Date(year, 0, 1).getDay();
     const adjustment = firstDayOfYear > 1 && firstDayOfYear < 5 ? -firstDayOfYear + 1 : 0;
-    const week = String(Math.ceil((adjustedDate - new Date(year, 0, 1 + adjustment)) / 86400000 / 7)).padStart(2, '0');
+    const week = String(Math.ceil((date - new Date(year, 0, 1 + adjustment)) / 86400000 / 7)).padStart(2, '0');
     return `${year}-${week}`;
 }
 async function guildLanguage() {
