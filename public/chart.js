@@ -43,13 +43,10 @@ function formatWeekRange(weekNumber) {
 }
 
 async function getYearWeek(date) {
-    const timeZoneOffset = 9 * 60;
-    const adjustedDate = new Date(date.getTime() + timeZoneOffset * 60 * 1000);
-
-    const year = adjustedDate.getFullYear();
-    const dayOfWeek = adjustedDate.getDay();
+    const year = date.getFullYear();
+    const dayOfWeek = date.getDay();
     const daysToSubtract = dayOfWeek === 0 ? 0 : dayOfWeek;
-    const dateForCalculation = new Date(adjustedDate.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+    const dateForCalculation = new Date(date.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
 
     const week = String(Math.ceil(((dateForCalculation - new Date(year, 0, 1)) / 86400000 + 1) / 7)).padStart(2, '0');
     return `${year}-${week}`;
