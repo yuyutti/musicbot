@@ -976,10 +976,12 @@ async function localPlay(message){
         }
     });
     connection.on(VoiceConnectionStatus.Ready, () => {
+        console.log("Ready")
         var type = 'Ready'
         return notice_vc(guildId, type, vc_channel)
     });
     connection.on(VoiceConnectionStatus.Disconnected, async () => {
+        console.log("Disconnected")
         var type = 'Disconnected'
         notice_vc(guildId, type, vc_channel)
         return await disconnect(guildId)
