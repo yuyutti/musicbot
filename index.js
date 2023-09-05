@@ -800,9 +800,9 @@ async function play(message) {
     await voiceConnections[guildId].subscribe(player);
     notice_playing(queue_Now, guildId, playing_channel)
     const info = await ytdl.getInfo(ytdl.getURLVideoID(queue_Now.url));
-    let format = ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
-    if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
-    if (!format) format = ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
+    let format = await ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
+    if (!format) format = await ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
+    if (!format) format = await ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
     const stream = ytdl.downloadFromInfo(info, {
         format: format,
         highWaterMark: 64 * 1024 * 1024,
