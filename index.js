@@ -364,7 +364,7 @@ client.on('messageCreate', async (message) => {
         if(arg === "ゆゆっち はなたば"){
             if (!adminId.includes(message.author.id)) { return console.log("command is access deny") }
             const music_file = './src/sound/yuyutti_hanataba.wav';
-            const source = 'https://www.youtube.com/watch?v=mZGt9tl8DKg'
+            const source = 'https://www.youtube.com/watch?v=7xht3kQO_TM'
             const queueItem = { url: music_file, title: "ゆゆっち ハナタバ", source: source }
             return queue_List(queueItem, message)
         }
