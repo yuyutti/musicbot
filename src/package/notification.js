@@ -47,7 +47,7 @@ async function join_left(guild,type,join_left_channel) {
 
 async function error_log(error,error_channel) {
     if(error_channel === null) return;
-    return await error_channel.send(`${error}`);
+    return //await error_channel.send(`${error}`);
 }
 
 async function express_error(err,express_error_channel) {
