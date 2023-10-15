@@ -1054,7 +1054,7 @@ async function guildLanguage() {
         return JSON.parse(data);
     }
     catch (err) {
-        //error_log(err, error_channel)
+        error_log(err, error_channel)
         return {};
     }
 }
@@ -1141,14 +1141,14 @@ client.on('guildDelete', (guild) => {
 client.login(token);
 app.listen(3010)
 
-process.on('uncaughtException', async(error) => {
-    console.error('Uncaught Exception:', error);
-    return error_log(error, error_channel)
-});
-process.on('unhandledRejection', (reason, promise) => {
-    console.error('Unhandled Rejection:', reason);
-    return error_log(reason, error_channel)
-});
+// process.on('uncaughtException', async(error) => {
+//     console.error('Uncaught Exception:', error);
+//     return error_log(error, error_channel)
+// });
+// process.on('unhandledRejection', (reason, promise) => {
+//     console.error('Unhandled Rejection:', reason);
+//     return error_log(reason, error_channel)
+// });
 
 const writeFileAsync = promisify(fs.writeFile);
 
