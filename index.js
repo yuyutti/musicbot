@@ -1054,7 +1054,7 @@ async function guildLanguage() {
         return JSON.parse(data);
     }
     catch (err) {
-        error_log(err, error_channel)
+        //error_log(err, error_channel)
         return {};
     }
 }
