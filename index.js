@@ -439,11 +439,10 @@ client.on('messageCreate', async (message) => {
                     const queue = queues[guildId] || [];
                     queues[guildId] = queue;
                     let i = 0
-                    const resxdata = resxData[lang].root.youtubeapi[0]
                     for (const trackTitle of playlistItems.name) {
                         searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
                         if(!searchResult) {
-                            message.channel.send(`skip`)
+                            message.channel.send(`${playlistItems.name} is not found`)
                             continue;
                         }
                         const queueItem = { url: searchResult.url, title: searchResult.title, sp_url: playlistItems.urls[i] };

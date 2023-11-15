@@ -80,7 +80,7 @@ async function search(searchQuery,maxResults) {
 
 async function Spotify_playlist_search(searchQuery,youtube_error_channel){
     try{
-        const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}`);
+        const response = await fetch(`https://www.youtube.com/results?search_query=${encodeURIComponent(searchQuery)}+%23music`);
         const html = await response.text();
         const $ = cheerio.load(html);
     
