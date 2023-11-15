@@ -44,24 +44,36 @@ async function Spotify_search(arg){
     }
 }
 
-async function Spotify_Playlist(playlist_ID){
-    const token = await auth()
-    console.log(token)
-    const url = `https://api.spotify.com/v1/playlists/${playlist_ID}/tracks`;
-    const requestOptions = {
-        headers: {
-            'Authorization': 'Bearer ' + token
-        }
-    }
-    const response = await fetch(url,requestOptions);
-    
-    const data = await response.json();
+async function Spotify_Playlist(playlist_ID) {
+    const token = await auth();
+    console.log(token);
+
+    let offset = 0;
     let name = [];
     let urls = [];
-    for (const item of data.items) {
-        name.push(item.track.name);
-        urls.push(item.track.external_urls.spotify);
+
+    while (true) {
+        const url = `https://api.spotify.com/v1/playlists/${playlist_ID}/tracks?offset=${offset}&locale=ja`;
+        const requestOptions = {
+            headers: {
+                'Authorization': 'Bearer ' + token
+            }
+        };
+
+        const response = await fetch(url, requestOptions);
+        const data = await response.json();
+
+        for (const item of data.items) {
+            name.push(item.track.name);
+            urls.push(item.track.external_urls.spotify);
+        }
+
+        offset += 100;
+        if (offset >= data.total) {
+            break;
+        }
     }
+    console.log(name.size)
     return { name, urls };
 }
 
