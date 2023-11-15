@@ -442,7 +442,7 @@ client.on('messageCreate', async (message) => {
                     for (const trackTitle of playlistItems.name) {
                         searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
                         if(!searchResult) {
-                            message.channel.send(`${playlistItems.name} is not found`)
+                            message.channel.send(`${trackTitle} is not found`)
                             continue;
                         }
                         const queueItem = { url: searchResult.url, title: searchResult.title, sp_url: playlistItems.urls[i] };
