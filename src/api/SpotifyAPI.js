@@ -73,7 +73,6 @@ async function Spotify_Playlist(playlist_ID) {
             break;
         }
     }
-    console.log(name.size)
     return { name, urls };
 }
 
