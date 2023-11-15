@@ -46,7 +46,7 @@ async function Spotify_search(arg){
 
 async function Spotify_Playlist(playlist_ID){
     const token = await auth()
-
+    console.log(token)
     const url = `https://api.spotify.com/v1/playlists/${playlist_ID}/tracks`;
     const requestOptions = {
         headers: {
