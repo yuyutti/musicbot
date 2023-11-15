@@ -442,9 +442,8 @@ client.on('messageCreate', async (message) => {
                     const resxdata = resxData[lang].root.youtubeapi[0]
                     for (const trackTitle of playlistItems.name) {
                         searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
-                        if(!searchResult) searchResult = await Spotify_playlist_search(trackTitle, youtube_error_channel);
                         if(!searchResult) {
-                            message.channel.send(`${resxdata.data[12].value} ${trackTitle} ${resxdata.data[11].value}`)
+                            message.channel.send(`skip`)
                             continue;
                         }
                         const queueItem = { url: searchResult.url, title: searchResult.title, sp_url: playlistItems.urls[i] };
