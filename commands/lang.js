@@ -40,9 +40,7 @@ module.exports = {
             await setData(interactionOrMessage.guildId, 'ja');
             interactionOrMessage.reply('デフォルト言語が日本語に変更されました');
         }
-        else {
-            return interactionOrMessage.reply('Please enter a valid language');
-        }
+        else return interactionOrMessage.reply('Please enter a valid language');
 
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return;

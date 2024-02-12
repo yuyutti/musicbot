@@ -26,6 +26,10 @@ const lang = {
         ja: '検索結果が見つかりませんでした',
         en: 'No search results found'
     },
+    aNotHit: {
+        ja: (trackName) => `${trackName}に一致する検索結果が見つかりませんでした`,
+        en: (trackName) => `No search results found for ${trackName}`
+    },
     unLink: {
         ja: '無効なURLです',
         en: 'Invalid URL'
@@ -46,6 +50,14 @@ const lang = {
         ja: (title)=> `**${title}** がキューに追加されました`,
         en: (title)=> `**${title}** has been added to the queue`
     },
+    addedAlbum: {
+        ja: (albumName, addedCount)=> `**${albumName}** アルバムから${addedCount}件がキューに追加されました`,
+        en: (albumName, addedCount)=> `${addedCount} songs have been added to the queue from the **${albumName}** album`
+    },
+    addedPlaylist: {
+        ja: (albumName, addedCount)=> `**${albumName}** プレイリストから${addedCount}件がキューに追加されました`,
+        en: (albumName, addedCount)=> `${addedCount} songs have been added to the queue from the **${albumName}** playlist`
+    }
 }
 
 module.exports = lang;

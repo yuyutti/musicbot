@@ -7,28 +7,12 @@ const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/commands/play');
 const { commandStatus, updateActivityStatus } = require('../events/event');
 
-async function refreshToken() {
-    const spotifyClientID = "58d35672f6314164b0955391407aa534";
-    const spotifyClientSecret = "dfbe817338f041ba91f046810800f72c";
-    const tokenData = await playdl.refreshToken(spotifyClientID, spotifyClientSecret);
-    // 取得したアクセストークンをplay-dlに設定
-    playdl.setToken({
-        spotify: {
-        access_token: tokenData.access_token,
-        }
-    });
-}
-
-refreshToken().then(() => {
-    console.log('Spotify token has been set.');
-}).catch(console.error);
-
 module.exports = {
     data: {
         name: 'play',
         description: {
-            english: 'Plays a song or a playlist from YouTube',
-            japanese: 'YouTubeから曲またはプレイリストを再生します'
+            english: 'Plays a song or playlist',
+            japanese: '曲またはプレイリストを再生します'
         },
         options: [
             {
@@ -47,7 +31,8 @@ module.exports = {
         let songString;
         let voiceChannel;
         let userId;
-        let isPlaylist = false;
+        let inputType = null;
+        let playlistName;
         let addedCount = 0;
         
         if (interactionOrMessage.isCommand?.()) {
@@ -59,10 +44,9 @@ module.exports = {
             songString = args.join(' ');
             voiceChannel = interactionOrMessage.member.voice.channel;
             userId = interactionOrMessage.author.id;
-            if (!voiceChannel) {
-                return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
-            }
         }
+
+        if (!voiceChannel) return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
 
         const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
 
@@ -88,7 +72,7 @@ module.exports = {
             break;
             
             case "yt_playlist":
-                isPlaylist = true;
+                inputType = "yt_playlist";
                 const playlistInfo = await playdl.playlist_info(songString,{ incomplete : true });
                 const initialLength = serverQueue.songs.length;
                 for (const video of playlistInfo.videos) {
@@ -122,18 +106,78 @@ module.exports = {
             break;
             
             case "sp_track":
-                const track = await playdl.spotify(songString);
-                console.log(track)
+                const sp_track = await playdl.spotify(songString);
+                const trackName = sp_track.spotifyTrack.name;
+                const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
+                if (sp_trackSearchResult.length > 0) {
+                    const video = sp_trackSearchResult[0];
+                    serverQueue.songs.push({
+                        title: video.title,
+                        url: video.url,
+                        duration: video.durationInSec,
+                        requestBy: userId
+                    });
+                }
+                else {
+                    return interactionOrMessage.reply({ content: language.notHit[lang], ephemeral: true });
+                }
             break;
             
             case "sp_album":
-                const album = await playdl.spotify(songString);
-                console.log(album)
+                inputType = "sp_album";
+                const sp_album = await playdl.spotify(songString);
+                playlistName = sp_album.name
+                const sp_albumTracksList = sp_album.fetched_tracks.get('1');
+
+                if (sp_albumTracksList && sp_albumTracksList.length > 0) {
+                    const initialLength = serverQueue.songs.length;
+                    for (const spotifyTrack of sp_albumTracksList) {
+                        const trackName = spotifyTrack.name;
+
+                        const searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
+                        if (searchResult.length > 0) {
+                            const video = searchResult[0];
+                            serverQueue.songs.push({
+                                title: video.title,
+                                url: video.url,
+                                duration: video.durationInSec,
+                                requestBy: userId
+                            });
+                        }
+                        else {
+                            return interactionOrMessage.reply({ content: language.aNotHit[lang](trackName), ephemeral: true });
+                        }
+                    }
+                    addedCount = serverQueue.songs.length - initialLength;
+                }
             break;
             
             case "sp_playlist":
-                const playlist = await playdl.spotify(songString);
-                console.log(playlist)
+                inputType = "sp_playlist";
+                const sp_playlist = await playdl.spotify(songString);
+                playlistName = sp_playlist.SpotifyPlaylist.name
+                const sp_playlistTracksList = sp_playlist.SpotifyPlaylist.fetched_tracks.get('1');
+                if (sp_playlistTracksList && sp_playlistTracksList.length > 0) {
+                    const initialLength = serverQueue.songs.length;
+                    for (const spotifyTrack of sp_playlistTracksList) {
+                        const trackName = spotifyTrack.name;
+
+                        const searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
+                        if (searchResult.length > 0) {
+                            const video = searchResult[0];
+                            serverQueue.songs.push({
+                                title: video.title,
+                                url: video.url,
+                                duration: video.durationInSec,
+                                requestBy: userId
+                            });
+                        }
+                        else {
+                            return interactionOrMessage.reply({ content: language.aNotHit[lang](trackName), ephemeral: true });
+                        }
+                    }
+                    addedCount = serverQueue.songs.length - initialLength;
+                }
             break;
 
             case false:
@@ -141,23 +185,37 @@ module.exports = {
         
             default:
                 return interactionOrMessage.reply({ content: language.notSupportService[lang], ephemeral: true });
-            }
+        }
 
         musicQueue.set(interactionOrMessage.guildId, serverQueue);
-
-        if (isPlaylist) {
+        
+        if (!inputType) {
+            if (serverQueue.songs.length === 1) {
+                playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title), ephemeral: true });
+            }
+            else {
+                const lastSong = serverQueue.songs.length - 1;
+                interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title), ephemeral: true });
+            }
+        }
+        else if (inputType === "yt_playlist") {
             interactionOrMessage.reply({ content: language.addToPlaylist[lang](addedCount), ephemeral: true });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
             }
         }
-        else if (serverQueue.songs.length === 1) {
-            playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title), ephemeral: true });
+        else if (inputType === "sp_album") {
+            interactionOrMessage.reply({ content: language.addedAlbum[lang](playlistName,addedCount), ephemeral: true });
+            if (serverQueue.songs.length === addedCount) {
+                playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+            }
         }
-        else {
-            const lastSong = serverQueue.songs.length - 1;
-            interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title), ephemeral: true });
+        else if (inputType === "sp_playlist") {
+            interactionOrMessage.reply({ content: language.addedPlaylist[lang](playlistName,addedCount), ephemeral: true });
+            if (serverQueue.songs.length === addedCount) {
+                playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+            }
         }
     }
 };

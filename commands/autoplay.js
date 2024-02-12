@@ -12,9 +12,8 @@ module.exports = {
     alias: ['ap'],
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = queue.get(interactionOrMessage.guildId);
-        if (!serverQueue) {
-            return interactionOrMessage.reply(language.notQueue[lang]);
-        }
+        if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
+        
         serverQueue.autoPlay = !serverQueue.autoPlay;
         interactionOrMessage.reply(language.autoplayStatus[lang](serverQueue.autoPlay));
 

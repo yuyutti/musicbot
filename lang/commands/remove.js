@@ -23,3 +23,5 @@ const lang = {
         en: 'Invalid request'
     }
 }
+
+module.exports = lang;

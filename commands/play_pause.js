@@ -13,9 +13,7 @@ module.exports = {
     alias: ['pause'],
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = queue.get(interactionOrMessage.guildId);
-        if (!serverQueue) {
-            return interactionOrMessage.reply(language.notQueue[lang]);
-        }
+        if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
 
         if (serverQueue.audioPlayer.state.status === AudioPlayerStatus.Paused) {
             serverQueue.audioPlayer.unpause();

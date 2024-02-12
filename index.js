@@ -149,9 +149,10 @@ client.on('voiceStateUpdate', (oldState, newState) => {
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
-    if (oldVoiceChannel && oldVoiceChannel.members.has(botId) && !newVoiceChannel) {
-        const memberCount = oldVoiceChannel ? oldVoiceChannel.members.size : 0;
-        if (memberCount === 1) {
+    if (oldVoiceChannel && (!newVoiceChannel || newVoiceChannel.id !== oldVoiceChannel.id)) {
+        const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
+
+        if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
             return cleanupQueue(newState.guild.id);
         }
     }

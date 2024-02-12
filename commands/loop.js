@@ -11,9 +11,8 @@ module.exports = {
     },
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = queue.get(interactionOrMessage.guildId);
-        if (!serverQueue) {
-            return interactionOrMessage.reply(language.notQueue[lang]);
-        }
+        if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
+        
         serverQueue.loop = !serverQueue.loop;
         interactionOrMessage.reply(language.loopStatus[lang](serverQueue.loop));
 

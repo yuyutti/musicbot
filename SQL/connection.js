@@ -30,7 +30,4 @@ async function createTable() {
     }
 }
 
-module.exports = {
-    createTable,
-    connection
-};
+module.exports = { createTable, connection };

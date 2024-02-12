@@ -13,9 +13,7 @@ module.exports = {
     alias: ['q'],
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
-        if (!serverQueue) {
-            return interactionOrMessage.reply(language.notQueue[lang]);
-        }
+        if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
 
         let currentPage = 0;
         const maxPages = Math.ceil(serverQueue.songs.length / 5);
@@ -34,15 +32,14 @@ module.exports = {
         collector.on('collect', async (interaction) => {
             if (interaction.customId === 'prev') {
                 currentPage = Math.max(0, currentPage - 1);
-            } else if (interaction.customId === 'next') {
+            }
+            else if (interaction.customId === 'next') {
                 currentPage = Math.min(maxPages - 1, currentPage + 1);
             }
             const embeds = createQueueEmbed(serverQueue, currentPage, maxPages, lang);
             const components = [createPaginationRow(currentPage, maxPages, lang)];
             await sentMessage.edit({ embeds: embeds, components: components });
-            if (!interaction.deferred && !interaction.replied) {
-                await interaction.deferUpdate();
-            }
+            if (!interaction.deferred && !interaction.replied) await interaction.deferUpdate();
         });
 
         collector.on('end', () => {

@@ -16,13 +16,12 @@ async function playSong(guildId, song) {
         Destroyed: false,
         Disconnected: false
     }
-    
+
     serverQueue.connection = joinVoiceChannel({
         channelId: serverQueue.voiceChannel.id,
         guildId,
         adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
     });
-
     serverQueue.connection.on("stateChange", async(oldState,newState) => {
         if (newState.status === VoiceConnectionStatus.Connecting){
             if (VoiceConnectionStatusFlag.Connecting) return;

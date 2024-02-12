@@ -12,9 +12,7 @@ module.exports = {
     },
     async execute(interactionOrMessage, args, lang) {
         const volume = parseInt(args[0], 10);
-        if (isNaN(volume) || volume < 0 || volume > 100) {
-            return interactionOrMessage.reply(language.invalidVolume[lang]);
-        }
+        if (isNaN(volume) || volume < 0 || volume > 100) return interactionOrMessage.reply(language.invalidVolume[lang]);
 
         interactionOrMessage.reply(language.setVolume[lang](volume));
         await setData(interactionOrMessage.guildId, args[0]);
