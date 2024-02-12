@@ -1,3 +1,4 @@
+const { ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const { queue: musicQueue } = require('../src/musicQueue');
 const language = require('../lang/commands/stop');
 
@@ -24,6 +25,22 @@ function cleanupQueue(guildId) {
         serverQueue.autoPlay = false;
         serverQueue.audioPlayer.removeAllListeners();
         serverQueue.connection.destroy();
+
+        if (serverQueue.playingMessage) {
+            const disabledButtons = new ActionRowBuilder()
+                .addComponents(
+                    serverQueue.playingMessage.components[0].components.map(button =>
+                        ButtonBuilder.from(button).setDisabled(true)
+                    )
+                );
+            const disabledButtons2 = new ActionRowBuilder()
+                .addComponents(
+                    serverQueue.playingMessage.components[1].components.map(button =>
+                        ButtonBuilder.from(button).setDisabled(true)
+                    )
+                );
+            serverQueue.playingMessage.edit({ components: [ disabledButtons, disabledButtons2 ] }).catch(console.error);
+        }
         musicQueue.delete(guildId);
     }
 }

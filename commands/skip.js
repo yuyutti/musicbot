@@ -24,13 +24,11 @@ module.exports = {
     },
     alias: ['s'],
     async execute(interactionOrMessage, args, lang) {
-        console.log(lang)
-        console.log(language.notQueue)
         const serverQueue = queue.get(interactionOrMessage.guildId);
         if (!serverQueue) {
             return interactionOrMessage.reply(language.notQueue[lang]);
         }
-        console.log(serverQueue.loop)
+        
         if (serverQueue.loop) {
             return interactionOrMessage.reply(language.loopEnabled[lang]);
         }

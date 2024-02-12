@@ -17,5 +17,8 @@ module.exports = {
         }
         serverQueue.autoPlay = !serverQueue.autoPlay;
         interactionOrMessage.reply(language.autoplayStatus[lang](serverQueue.autoPlay));
+
+        if (!serverQueue) return;
+        serverQueue.commandStatus.emit('autoplay');
     }
 };

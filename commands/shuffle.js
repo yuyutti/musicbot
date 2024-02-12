@@ -12,9 +12,9 @@ module.exports = {
     alias: ['sh'],
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = queue.get(interactionOrMessage.guildId);
-        if (!serverQueue) {
-            return interactionOrMessage.reply(language.notQueue[lang]);
-        }
+        if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
+
+        if (serverQueue.songs.length <= 1) return interactionOrMessage.reply(language.onlyOneSong[lang]);
 
         const currentSong = serverQueue.songs[0];
         const shuffledSongs = serverQueue.songs.slice(1).sort(() => Math.random() - 0.5);

@@ -1,5 +1,5 @@
 const { queue: musicQueue } = require('../src/musicQueue');
-const { setData } = require('../SQL/data');
+const { setData } = require('../SQL/setdata');
 
 module.exports = {
     data: {
@@ -37,11 +37,11 @@ module.exports = {
             interactionOrMessage.reply('The default language has been changed to English');
         }
         else if (lang === 'japanese' || lang === 'ja') {
-            setData(interactionOrMessage.guildId, 'ja');
+            await setData(interactionOrMessage.guildId, 'ja');
             interactionOrMessage.reply('デフォルト言語が日本語に変更されました');
         }
         else {
-            interactionOrMessage.reply('Please enter a valid language');
+            return interactionOrMessage.reply('Please enter a valid language');
         }
 
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);

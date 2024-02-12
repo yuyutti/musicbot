@@ -2,3 +2,4 @@
 .env
 /data/guildLanguage.json
 /data/use.json
+.data

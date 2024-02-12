@@ -15,8 +15,8 @@ const lang = {
         en: 'Queue List'
     },
     description: {
-        ja: (totalDuration) => `総再生時間: ${totalDuration}`,
-        en: (totalDuration) => `Total play time: ${totalDuration}`
+        ja: (totalDuration, musicLength) => `曲数: \`${musicLength}曲\` 総再生時間: \`${totalDuration}\``,
+        en: (totalDuration, musicLength) => `Songs: \`${musicLength}songs\` Total duration: \`${totalDuration}\``
     },
     nowPlaying: {
         ja: '再生中',

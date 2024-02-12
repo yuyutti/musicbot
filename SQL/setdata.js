@@ -1,7 +1,6 @@
 const { connection } = require('./connection');
 
 async function setData(guildId, arg) {
-    console.log(arg)
     let query = `INSERT INTO guild_settings (guild_id`;
     let updateClause = `ON DUPLICATE KEY UPDATE `;
     let values = [guildId];

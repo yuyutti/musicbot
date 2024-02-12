@@ -13,6 +13,10 @@ const lang = {
     shuffled: {
         ja: 'キューをシャッフルしました',
         en: 'Shuffled the queue'
+    },
+    onlyOneSong: {
+        ja: '現在再生中の曲以外がキューに追加されていないためシャッフルできません',
+        en: 'Cannot shuffle because only the currently playing song is in the queue'
     }
 }
 

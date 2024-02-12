@@ -1,11 +1,27 @@
 const { PermissionsBitField } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, NoSubscriberBehavior, AudioPlayerStatus } = require('@discordjs/voice');
+const { joinVoiceChannel, createAudioPlayer, NoSubscriberBehavior } = require('@discordjs/voice');
 const playdl = require('play-dl');
 const { queue: musicQueue } = require('../src/musicQueue');
 const { playSong } = require('../src/playsong');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/commands/play');
-const commandStatus = require('../events/event');
+const { commandStatus, updateActivityStatus } = require('../events/event');
+
+async function refreshToken() {
+    const spotifyClientID = "58d35672f6314164b0955391407aa534";
+    const spotifyClientSecret = "dfbe817338f041ba91f046810800f72c";
+    const tokenData = await playdl.refreshToken(spotifyClientID, spotifyClientSecret);
+    // 取得したアクセストークンをplay-dlに設定
+    playdl.setToken({
+        spotify: {
+        access_token: tokenData.access_token,
+        }
+    });
+}
+
+refreshToken().then(() => {
+    console.log('Spotify token has been set.');
+}).catch(console.error);
 
 module.exports = {
     data: {
@@ -49,14 +65,14 @@ module.exports = {
         }
 
         const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
-        if (!permissions.has(PermissionsBitField.Flags.Connect) || !permissions.has(PermissionsBitField.Flags.Speak)) {
-            return interactionOrMessage.reply({ content: language.connectPermission[lang], ephemeral: true });
-        }
+
+        if (!permissions.has(PermissionsBitField.Flags.ViewChannel)) return interactionOrMessage.reply({ content: language.ViewChannelPermission[lang], ephemeral: true });
+        if (!permissions.has(PermissionsBitField.Flags.Connect)) return interactionOrMessage.reply({ content: language.ConnectPermission[lang], ephemeral: true });
+        if (!permissions.has(PermissionsBitField.Flags.Speak)) return interactionOrMessage.reply({ content: language.SpeakPermission[lang], ephemeral: true });
 
         const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await createServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
 
         const stringType = await playdl.validate(songString);
-        console.log(stringType)
         switch (stringType) {
 
             case "yt_video":
@@ -106,15 +122,18 @@ module.exports = {
             break;
             
             case "sp_track":
-                console.log('sp_track')
+                const track = await playdl.spotify(songString);
+                console.log(track)
             break;
             
             case "sp_album":
-                console.log('sp_album')
+                const album = await playdl.spotify(songString);
+                console.log(album)
             break;
             
             case "sp_playlist":
-                console.log('sp_playlist')
+                const playlist = await playdl.spotify(songString);
+                console.log(playlist)
             break;
 
             case false:
@@ -134,21 +153,22 @@ module.exports = {
         }
         else if (serverQueue.songs.length === 1) {
             playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs.title), ephemeral: true });
+            interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title), ephemeral: true });
         }
         else {
-            const addedSong = serverQueue.songs[serverQueue.songs.length - 1];
-            interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs.title), ephemeral: true });
+            const lastSong = serverQueue.songs.length - 1;
+            interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title), ephemeral: true });
         }
     }
 };
 
 async function createServerQueue(guildId, voiceChannel, textChannel) {
     const queueConstruct = {
-        voiceChannel,
         textChannel,
-        language: await lang(guildId) || 'en',
+        playingMessage: null,
+        voiceChannel,
         connection: null,
+        language: await lang(guildId) || 'en',
         loop: false,
         autoPlay: false,
         volume: await volume(guildId) || 10,
@@ -160,14 +180,6 @@ async function createServerQueue(guildId, voiceChannel, textChannel) {
             }
         }),
     };
-
-    const connection = joinVoiceChannel({
-        channelId: voiceChannel.id,
-        guildId,
-        adapterCreator: voiceChannel.guild.voiceAdapterCreator,
-    });
-
-    queueConstruct.connection = connection;
     musicQueue.set(guildId, queueConstruct);
 
     return queueConstruct;

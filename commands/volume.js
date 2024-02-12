@@ -1,5 +1,5 @@
 const { queue: musicQueue } = require('../src/musicQueue');
-const { setData } = require('../SQL/data');
+const { setData } = require('../SQL/setdata');
 const language = require('../lang/commands/volume');
 
 module.exports = {
@@ -17,11 +17,10 @@ module.exports = {
         }
 
         interactionOrMessage.reply(language.setVolume[lang](volume));
-        setData(interactionOrMessage.guildId, args[0]);
+        await setData(interactionOrMessage.guildId, args[0]);
 
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return;
-
         serverQueue.commandStatus.emit('volume');
     }
 };

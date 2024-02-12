@@ -10,9 +10,17 @@ const lang = {
         ja: '音声チャンネルに参加してから音楽を再生してください',
         en: 'Please join a voice channel before playing music'
     },
-    connectPermission: {
-        ja: '音声チャンネルに参加し、発言するための許可が必要です',
-        en: 'You need permission to join a voice channel and speak'
+    ViewChannelPermission: {
+        ja: '音声チャンネルを閲覧する権限が必要です',
+        en: 'Permission to view the voice channel is required'
+    },
+    ConnectPermission: {
+        ja: '音声チャンネルに接続する権限が必要です',
+        en: 'Permission to connect to a voice channel is required'
+    },
+    SpeakPermission: {
+        ja: '音声チャンネルで発言する権限が必要です',
+        en: 'Permission to speak in a voice channel is required'
     },
     notHit: {
         ja: '検索結果が見つかりませんでした',

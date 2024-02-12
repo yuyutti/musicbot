@@ -65,7 +65,7 @@ function createQueueEmbed(serverQueue, currentPage, maxPages, lang) {
     const totalDuration = getTotalDuration(serverQueue);
     const embed = new EmbedBuilder()
         .setTitle(language.title[lang])
-        .setDescription(language.description[lang](totalDuration))
+        .setDescription(language.description[lang](totalDuration, serverQueue.songs.length))
         .setColor('#FF0000')
         .setFooter({ text: language.footer[lang](currentPage, maxPages) });
 

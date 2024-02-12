@@ -16,5 +16,8 @@ module.exports = {
         }
         serverQueue.loop = !serverQueue.loop;
         interactionOrMessage.reply(language.loopStatus[lang](serverQueue.loop));
+
+        if (!serverQueue) return;
+        serverQueue.commandStatus.emit('loop');
     }
 };
