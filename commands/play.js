@@ -57,6 +57,11 @@ module.exports = {
         const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await createServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
 
         const stringType = await playdl.validate(songString);
+
+        if (stringType === "sp_track" || stringType === "sp_album" || stringType === "sp_playlist") {
+            if (playdl.is_expired()) await playdl.refreshToken()
+        }
+
         switch (stringType) {
 
             case "yt_video":
@@ -125,59 +130,16 @@ module.exports = {
             
             case "sp_album":
                 inputType = "sp_album";
-                const sp_album = await playdl.spotify(songString);
-                playlistName = sp_album.name
-                const sp_albumTracksList = sp_album.fetched_tracks.get('1');
-
-                if (sp_albumTracksList && sp_albumTracksList.length > 0) {
-                    const initialLength = serverQueue.songs.length;
-                    for (const spotifyTrack of sp_albumTracksList) {
-                        const trackName = spotifyTrack.name;
-
-                        const searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
-                        if (searchResult.length > 0) {
-                            const video = searchResult[0];
-                            serverQueue.songs.push({
-                                title: video.title,
-                                url: video.url,
-                                duration: video.durationInSec,
-                                requestBy: userId
-                            });
-                        }
-                        else {
-                            return interactionOrMessage.reply({ content: language.aNotHit[lang](trackName), ephemeral: true });
-                        }
-                    }
-                    addedCount = serverQueue.songs.length - initialLength;
-                }
-            break;
+                const sp_album = await addSpotifyTrackListToQueue(songString, serverQueue, userId, lang, interactionOrMessage);
+                playlistName = sp_album.Name;
+                addedCount = sp_album.addedCount;
+                break;
             
             case "sp_playlist":
                 inputType = "sp_playlist";
-                const sp_playlist = await playdl.spotify(songString);
-                playlistName = sp_playlist.SpotifyPlaylist.name
-                const sp_playlistTracksList = sp_playlist.SpotifyPlaylist.fetched_tracks.get('1');
-                if (sp_playlistTracksList && sp_playlistTracksList.length > 0) {
-                    const initialLength = serverQueue.songs.length;
-                    for (const spotifyTrack of sp_playlistTracksList) {
-                        const trackName = spotifyTrack.name;
-
-                        const searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
-                        if (searchResult.length > 0) {
-                            const video = searchResult[0];
-                            serverQueue.songs.push({
-                                title: video.title,
-                                url: video.url,
-                                duration: video.durationInSec,
-                                requestBy: userId
-                            });
-                        }
-                        else {
-                            return interactionOrMessage.reply({ content: language.aNotHit[lang](trackName), ephemeral: true });
-                        }
-                    }
-                    addedCount = serverQueue.songs.length - initialLength;
-                }
+                const sp_playlist = await addSpotifyTrackListToQueue(songString, serverQueue, userId, lang, interactionOrMessage);
+                playlistName = sp_playlist.Name;
+                addedCount = sp_playlist.addedCount;
             break;
 
             case false:
@@ -219,6 +181,55 @@ module.exports = {
         }
     }
 };
+
+async function addSpotifyTrackListToQueue(songString, serverQueue, userId, lang, interactionOrMessage) {
+    const result = await playdl.spotify(songString);
+    const Name = result.name;
+    const artist = result.artists[0].name;
+    const resultTracksList = result.fetched_tracks.get('1');
+    let addedCount = 0;
+
+    if (resultTracksList && resultTracksList.length > 0) {
+        const firstTrack = resultTracksList[0];
+        const firstTrackName = firstTrack.name;
+        const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1 });
+        if (firstSearchResult.length > 0) {
+            const firstVideo = firstSearchResult[0];
+            serverQueue.songs.push({
+                title: firstVideo.title,
+                url: firstVideo.url,
+                duration: firstVideo.durationInSec,
+                requestBy: userId
+            });
+            addedCount++;
+            playSong(serverQueue.guildId, serverQueue.songs[0]);
+        } else {
+            return interactionOrMessage.reply({ content: language.aNotHit[lang](firstTrackName), ephemeral: true });
+        }
+
+        const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
+            const trackName = spotifyTrack.name;
+            console.log(trackName)
+            const searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1 });
+            if (searchResult.length > 0) {
+                const video = searchResult[0];
+                return {
+                    title: video.title,
+                    url: video.url,
+                    duration: video.durationInSec,
+                    requestBy: userId
+                };
+            }
+            return null;
+        });
+
+        const tracks = await Promise.all(trackPromises);
+        const validTracks = tracks.filter(track => track !== null);
+        serverQueue.songs.push(...validTracks);
+        addedCount += validTracks.length;
+    }
+    return { Name, addedCount };
+}
 
 async function createServerQueue(guildId, voiceChannel, textChannel) {
     const queueConstruct = {

@@ -22,6 +22,13 @@ async function playSong(guildId, song) {
         guildId,
         adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
     });
+    
+    const lan = serverQueue.language;
+    serverQueue.connection.removeAllListeners();
+    serverQueue.audioPlayer.removeAllListeners();
+    serverQueue.commandStatus.removeAllListeners();
+    cleanupButtons(guildId);
+
     serverQueue.connection.on("stateChange", async(oldState,newState) => {
         if (newState.status === VoiceConnectionStatus.Connecting){
             if (VoiceConnectionStatusFlag.Connecting) return;
@@ -45,11 +52,6 @@ async function playSong(guildId, song) {
             cleanupQueue();
         }
     })
-
-    const lan = serverQueue.language;
-    serverQueue.audioPlayer.removeAllListeners();
-    serverQueue.commandStatus.removeAllListeners();
-    cleanupButtons(guildId)
 
     try {
         const info = await ytdl.getInfo(ytdl.getURLVideoID(song.url));

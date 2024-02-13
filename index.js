@@ -7,8 +7,9 @@ const { createTable } = require('./SQL/connection');
 const { setData } = require('./SQL/setdata');
 const { removeData } = require('./SQL/removedata');
 const { lang, volume } = require('./SQL/lockup');
-const globalLanguage = require('./lang/commands/global');
 
+const{ queue: musicQueue } = require('./src/musicQueue');
+const globalLanguage = require('./lang/commands/global');
 const updateActivity = require('./src/activity')
 
 createTable();
@@ -89,21 +90,22 @@ client.on('interactionCreate', async interaction => {
 // 音楽再生中のボタン待ち受け
 client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
-
     const { customId } = interaction;
+    if (customId === 'next' || customId === 'prev') return;
+
     let args = [];
     const language = await lang(interaction.guildId);
     const guildVolume = await volume(interaction.guildId);
 
     switch (customId) {
         case 'volumeSmall':
-            args = [Math.max(0, guildVolume - 5)]; // ボリュームを下げる。下限は0に設定
+            args = [Math.max(0, guildVolume - 5)];
             break;
         case 'volumeDefault':
-            args = [10]; // デフォルト値にリセット
+            args = [10];
             break;
         case 'volumeBig':
-            args = [Math.min(100, guildVolume + 5)]; // ボリュームを上げる。上限は100に設定
+            args = [Math.min(100, guildVolume + 5)];
             break;
         default:
             await executeCommand(customId, interaction, [], language);

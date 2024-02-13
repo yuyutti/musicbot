@@ -21,6 +21,10 @@ const lang = {
     invalidNumber: {
         ja: '無効なリクエストです',
         en: 'Invalid request'
+    },
+    removedSong: {
+        ja: (title) => `**${title}** がキューから削除されました`,
+        en: (title) => `**${title}** has been removed from the queue`
     }
 }
 
