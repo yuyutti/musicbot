@@ -51,7 +51,7 @@ client.once('ready', async() => {
             }
         }
     }
-    await client.application.commands.set(commands, guildId);
+    await client.application.commands.set(commands);
 
     console.log(`Logged in as ${client.user.tag}`);
     updateActivity(client)
