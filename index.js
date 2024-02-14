@@ -83,6 +83,11 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
+    if (interaction.deferred || interaction.replied) {
+        console.log('このインタラクションは既に応答されています。');
+        return;
+    }
+
     const language = await lang(interaction.guildId);
     const args = "いんたらくしょんだからないよ～ん"
     const command = client.commands.get(interaction.commandName);
@@ -100,6 +105,11 @@ client.on('interactionCreate', async interaction => {
 
 // 音楽再生中のボタン待ち受け
 client.on('interactionCreate', async interaction => {
+    if (interaction.deferred || interaction.replied) {
+        console.log('このインタラクションは既に応答されています。');
+        return;
+    }
+
     if (!interaction.isButton()) return;
     const { customId } = interaction;
     if (customId === 'next' || customId === 'prev') return;
@@ -140,12 +150,8 @@ client.on('interactionCreate', async interaction => {
 client.on('messageCreate', async message => {
     if (message.author.bot && message.reference) {
         try {
-            // 返信されたメッセージをフェッチ
             const repliedMessage = await message.channel.messages.fetch(message.reference.messageId);
-
-            // 返信されたメッセージがBOT自身によるものであるかを確認
             if (repliedMessage.author.id === client.user.id) {
-                // 数秒後にメッセージを削除
                 setTimeout(() => {
                     message.delete().catch(console.error);
                 }, 3000);
@@ -158,7 +164,6 @@ client.on('messageCreate', async message => {
 
 client.on('voiceStateUpdate', (oldState, newState) => {
     updateActivity(client);
-    const botId = client.user.id;
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
@@ -172,7 +177,6 @@ client.on('voiceStateUpdate', (oldState, newState) => {
 });
 
 client.on('guildCreate', guild => {
-    // guild.preferredLocaleがjaだった場合DBに言語を登録
     if (guild.preferredLocale === 'ja') {
         setData(guild.id, 'ja');
     }
@@ -215,5 +219,9 @@ function cleanupQueue(guildId) {
         musicQueue.delete(guildId);
     }
 }
+
+process.on('uncaughtException', (err) => {
+    console.error(err);
+});
 
 client.login(process.env.DISCORD_TOKEN);
