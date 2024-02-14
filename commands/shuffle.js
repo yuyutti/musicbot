@@ -4,9 +4,12 @@ const language = require('../lang/commands/shuffle');
 module.exports = {
     data: {
         name: 'shuffle',
-        description: {
-            english: 'Shuffles the songs in the queue',
-            japanese: 'キューに入っている曲順をシャッフルします'
+        description: 'Shuffles the songs in the queue',
+        name_localizations: {
+            ja: 'shuffle',
+        },
+        description_localizations: {
+            ja: 'キューに入っている曲順をシャッフルします',
         }
     },
     alias: ['sh'],

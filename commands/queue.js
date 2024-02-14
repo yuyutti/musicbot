@@ -5,9 +5,12 @@ const language = require('../lang/commands/queue');
 module.exports = {
     data: {
         name: 'queue',
-        description: {
-            english: 'Displays the current music queue',
-            japanese: '現在の音楽キューを表示します'
+        description: 'Displays the current music queue',
+        name_localizations: {
+            ja: 'queue',
+        },
+        description_localizations: {
+            ja: '現在の音楽キューを表示します',
         }
     },
     alias: ['q'],
@@ -55,8 +58,9 @@ module.exports = {
 };
 
 function createQueueEmbed(serverQueue, currentPage, maxPages, lang) {
-    const start = currentPage * 5;
-    const end = start + 5;
+    const songsPerPage = 5; // 1ページあたりの曲数
+    const start = currentPage * songsPerPage;
+    const end = start + songsPerPage;
     const currentSongs = serverQueue.songs.slice(start, end);
 
     const totalDuration = getTotalDuration(serverQueue);
@@ -67,7 +71,8 @@ function createQueueEmbed(serverQueue, currentPage, maxPages, lang) {
         .setFooter({ text: language.footer[lang](currentPage, maxPages) });
 
     currentSongs.forEach((song, index) => {
-        const name = index === 0 ? `${language.nowPlaying[lang]} - ${formatDuration(song.duration)}` : `No${start + index} - ${formatDuration(song.duration)}`;
+        const isNowPlaying = serverQueue.songs[0] === song;
+        const name = isNowPlaying ? `${language.nowPlaying[lang]} - ${formatDuration(song.duration)}` : `No.${start + index + 1} - ${formatDuration(song.duration)}`;
         embed.addFields(
             { name: name, value: `${song.title}` }
         );

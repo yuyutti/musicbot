@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection } = require('discord.js');
+const { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -26,22 +26,33 @@ const client = new Client({
 client.commands = new Collection();
 const prefix = "!";
 
-const commandsPath = path.join(__dirname, 'commands');
-const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
+const clientId = process.env.CLIENT_ID;
+const guildId = process.env.GUILD_ID;
 
-for (const file of commandFiles) {
-    const command = require(`./commands/${file}`);
+client.once('ready', async() => {
+    const commands = [];
+    const commandsPath = path.join(__dirname, 'commands');
+    const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
 
-    client.commands.set(command.data.name, command);
+    for (const file of commandFiles) {
+        const command = require(`./commands/${file}`);
 
-    if (command.alias) {
-        for (const alias of command.alias) {
-            client.commands.set(alias, command);
+        client.commands.set(command.data.name, command);
+        commands.push(command.data);
+        if (command.alias) {
+            for (const alias of command.alias) {
+                client.commands.set(alias, command);
+                commands.push({
+                    ...command.data,
+                    name: alias,
+                    name_localizations: command.data.name_localizations ? 
+                    Object.fromEntries(Object.entries(command.data.name_localizations).map(([key, value]) => [key, alias])) : undefined,
+                });
+            }
         }
     }
-}
+    await client.application.commands.set(commands, guildId);
 
-client.once('ready', () => {
     console.log(`Logged in as ${client.user.tag}`);
     updateActivity(client)
 });

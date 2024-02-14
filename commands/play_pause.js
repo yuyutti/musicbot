@@ -5,10 +5,13 @@ const language = require('../lang/commands/play_pause');
 module.exports = {
     data: {
         name: 'play_pause',
-        description: {
-            english: 'Toggles between pausing and resuming playback',
-            japanese: '一時停止・再生を切り替えます'
+        description: 'Toggles between pausing and resuming playback',
+        name_localizations: {
+            ja: 'play_pause',
         },
+        description_localizations: {
+            ja: '一時停止・再生を切り替えます',
+        }
     },
     alias: ['pause'],
     async execute(interactionOrMessage, args, lang) {

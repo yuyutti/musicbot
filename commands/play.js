@@ -1,27 +1,33 @@
 const { PermissionsBitField } = require('discord.js');
-const { joinVoiceChannel, createAudioPlayer, NoSubscriberBehavior } = require('@discordjs/voice');
+const { createAudioPlayer, NoSubscriberBehavior } = require('@discordjs/voice');
 const playdl = require('play-dl');
 const { queue: musicQueue } = require('../src/musicQueue');
 const { playSong } = require('../src/playsong');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/commands/play');
-const { commandStatus, updateActivityStatus } = require('../events/event');
+const { commandStatus } = require('../events/event');
 
 module.exports = {
     data: {
         name: 'play',
-        description: {
-            english: 'Plays a song or playlist',
-            japanese: '曲またはプレイリストを再生します'
+        description: 'Plays a song or playlist',
+        name_localizations: {
+            ja: 'play',
+        },
+        description_localizations: {
+            ja: '曲またはプレイリストを再生します',
         },
         options: [
             {
                 name: 'song',
-                description: {
-                    english: 'The song URL, playlist URL, or search keywords',
-                    japanese: '曲のURL、プレイリストのURL、または検索キーワード'
+                description: 'The song URL, playlist URL, or search keywords',
+                name_localizations: {
+                    ja: '曲',
                 },
-                type: 'STRING',
+                description_localizations: {
+                    ja: '曲のURL、プレイリストのURL、または検索キーワード',
+                },
+                type: 3,
                 required: true
             }
         ]
@@ -36,7 +42,6 @@ module.exports = {
         let addedCount = 0;
         
         if (interactionOrMessage.isCommand?.()) {
-            await interaction.deferReply();
             songString = interactionOrMessage.options.getString('song');
             voiceChannel = interactionOrMessage.member.voice.channel;
             userId = interactionOrMessage.user.id;
@@ -154,27 +159,27 @@ module.exports = {
         if (!inputType) {
             if (serverQueue.songs.length === 1) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-                interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title), ephemeral: true });
+                interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title) });
             }
             else {
                 const lastSong = serverQueue.songs.length - 1;
-                interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title), ephemeral: true });
+                interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title) });
             }
         }
         else if (inputType === "yt_playlist") {
-            interactionOrMessage.reply({ content: language.addToPlaylist[lang](addedCount), ephemeral: true });
+            interactionOrMessage.reply({ content: language.addToPlaylist[lang](addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
             }
         }
         else if (inputType === "sp_album") {
-            interactionOrMessage.reply({ content: language.addedAlbum[lang](playlistName,addedCount), ephemeral: true });
+            interactionOrMessage.reply({ content: language.addedAlbum[lang](playlistName,addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
             }
         }
         else if (inputType === "sp_playlist") {
-            interactionOrMessage.reply({ content: language.addedPlaylist[lang](playlistName,addedCount), ephemeral: true });
+            interactionOrMessage.reply({ content: language.addedPlaylist[lang](playlistName,addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
             }
@@ -185,7 +190,7 @@ module.exports = {
 async function addSpotifyTrackListToQueue(songString, serverQueue, userId, lang, interactionOrMessage) {
     const result = await playdl.spotify(songString);
     const Name = result.name;
-    const artist = result.artists[0].name;
+    const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";
     const resultTracksList = result.fetched_tracks.get('1');
     let addedCount = 0;
 
