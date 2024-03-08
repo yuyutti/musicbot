@@ -1,14 +1,19 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { createAudioResource, AudioPlayerStatus, getVoiceConnection, VoiceConnectionStatus, joinVoiceChannel } = require('@discordjs/voice');
-const ytdl = require('ytdl-core');
+const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, joinVoiceChannel } = require('@discordjs/voice');
+const play = require('play-dl');
 const { queue: musicQueue } = require('./musicQueue');
 const { autoplay } = require('./autoplay');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
+const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
+    console.log(musicQueue)
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return cleanupQueue(guildId);
+
+    const loggerChannel = getLoggerChannel();
+    const errorChannel = getErrorChannel();
 
     let VoiceConnectionStatusFlag = {
         Connecting: false,
@@ -33,42 +38,28 @@ async function playSong(guildId, song) {
         if (newState.status === VoiceConnectionStatus.Connecting){
             if (VoiceConnectionStatusFlag.Connecting) return;
             VoiceConnectionStatusFlag.Connecting = true
-            console.log(`${serverQueue.voiceChannel.guild.name}のVCに接続しました`);
+            loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**のVCに接続しました`);
         }
         if (newState.status === VoiceConnectionStatus.Ready){
             if (VoiceConnectionStatusFlag.Ready) return;
             VoiceConnectionStatusFlag.Ready = true
-            console.log("ready")
         }
         if (newState.status === VoiceConnectionStatus.Destroyed){
             if (VoiceConnectionStatusFlag.Destroyed) return;
             VoiceConnectionStatusFlag.Destroyed = true
-            console.log("destroyed")
+            loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**のVCから切断しました`);
         }
         if (newState.status === VoiceConnectionStatus.Disconnected){
             if (VoiceConnectionStatusFlag.Disconnected) return;
             VoiceConnectionStatusFlag.Disconnected = true
-            console.log("disconnected");
             cleanupQueue();
         }
     })
 
     try {
-        const info = await ytdl.getInfo(ytdl.getURLVideoID(song.url));
-        let format = await ytdl.chooseFormat(info.formats, { quality: 'highestaudio' });
-        if (!format) format = await ytdl.chooseFormat(info.formats, { filter: 'audioonly' });
-        if (!format) format = await ytdl.chooseFormat(info.formats, { filter: 'audioandvideo' });
-
-        const stream = ytdl.downloadFromInfo(info, {
-            format: format,
-            highWaterMark: 32 * 1024 * 1024,
-            liveBuffer: 32 * 1024 * 1024,
-            dlChunkSize: 0,
-            bitrate: 128,
-        });
-        const resource = createAudioResource(stream, {
-            inputType: "webm/opus",
-            bitrate: 64,
+        const stream = await play.stream(song.url, { quality: 0, discordPlayerCompatibility: true });
+        const resource = createAudioResource(stream.stream, {
+            inputType: stream.type,
             inlineVolume: true
         });
         resource.volume.setVolume(volumePurse(serverQueue.volume));
@@ -96,6 +87,7 @@ async function playSong(guildId, song) {
 
         serverQueue.audioPlayer.once('stateChange', async(oldState, newState) => {
             if (newState.status === AudioPlayerStatus.Playing) {
+                loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**再生を開始しました`);
                 const buttons = new ActionRowBuilder()
                     .addComponents(
                         new ButtonBuilder()
@@ -170,6 +162,7 @@ async function playSong(guildId, song) {
 
         serverQueue.audioPlayer.on('error', (error) => {
             console.error('Audio player error:', error);
+            errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でaudioPlayerエラーが発生しました\n\`\`\`${error}\`\`\``);
             cleanupQueue(guildId);
         });
 
@@ -177,6 +170,7 @@ async function playSong(guildId, song) {
     }
     catch (error) {
         console.error('Error playing song:', error);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
     }
 }

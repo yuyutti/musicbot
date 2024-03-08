@@ -1,4 +1,5 @@
 const { connection } = require('./connection');
+const { loggerChannel, errorChannel } = require('../src/log');
 
 async function setData(guildId, arg) {
     let query = `INSERT INTO guild_settings (guild_id`;
@@ -18,6 +19,7 @@ async function setData(guildId, arg) {
         values.push(arg);
     } else {
         console.error('Invalid argument provided');
+        errorChannel.send(`Invalid argument provided: \n\`\`\`${arg}\`\`\``);
         return;
     }
 
@@ -27,6 +29,7 @@ async function setData(guildId, arg) {
         const [result] = await connection.execute(query, values);
     } catch (error) {
         console.error('Failed to update guild setting:', error);
+        errorChannel.send(`Failed to update guild setting: \n\`\`\`${error}\`\`\``);
         throw error;
     }
 }

@@ -10,7 +10,9 @@ const { lang, volume } = require('./SQL/lockup');
 
 const{ queue: musicQueue } = require('./src/musicQueue');
 const globalLanguage = require('./lang/commands/global');
-const updateActivity = require('./src/activity')
+const updateActivity = require('./src/activity');
+const updatePlayingGuild = require('./src/playingGuild');
+const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log');
 
 createTable();
 
@@ -28,6 +30,11 @@ const prefix = "!";
 
 const clientId = process.env.CLIENT_ID;
 const guildId = process.env.GUILD_ID;
+const loggerChannelId = process.env.LOGGER_CHANNEL_ID;
+const errorChannelId = process.env.ERROR_CHANNEL_ID;
+
+let loggerChannel;
+let errorChannel;
 
 client.once('ready', async() => {
     const commands = [];
@@ -52,8 +59,11 @@ client.once('ready', async() => {
         }
     }
     await client.application.commands.set(commands);
-
+    await fetchChannel(client);
+    loggerChannel = getLoggerChannel();
+    errorChannel = getErrorChannel();
     console.log(`Logged in as ${client.user.tag}`);
+    loggerChannel.send('Logged in as ' + client.user.tag);
     updateActivity(client)
 });
 
@@ -73,10 +83,12 @@ client.on('messageCreate', async message => {
     if (!command) return;
 
     try {
+        loggerChannel.send(`!**${message.guild.name}**で**${commandName}**が実行されました`);
         await command.execute(message, args, language);
     }
     catch (error) {
         console.error(error);
+        errorChannel.send(`Error: \n\`\`\`${error}\`\`\``);
         message.reply({ content: globalLanguage.error[language] , ephemeral: true });
     }
 });
@@ -95,10 +107,12 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
+        loggerChannel.send(`/**${interaction.guild.name}**で**${interaction.commandName}**が実行されました`);
         await command.execute(interaction, args, language);
     }
     catch (error) {
         console.error(error);
+        errorChannel.send(`Error: \n\`\`\`${error}\`\`\``);
         await interaction.reply({ content: globalLanguage.error[language], ephemeral: true });
     }
 });
@@ -137,12 +151,7 @@ client.on('interactionCreate', async interaction => {
 
     async function executeCommand(commandName, interaction, args, language) {
         const command = client.commands.get(commandName);
-        if (command) {
-            await command.execute(interaction, args, language);
-        }
-        else {
-            console.error(`Command not found: ${commandName}`);
-        }
+        if (command) await command.execute(interaction, args, language);
     }
 });
 
@@ -158,6 +167,7 @@ client.on('messageCreate', async message => {
             }
         } catch (error) {
             console.error('Error fetching replied message:', error);
+            errorChannel.send(`Error fetching replied message: \n\`\`\`${error}\`\`\``);
         }
     }
 });
@@ -181,17 +191,20 @@ client.on('guildCreate', guild => {
         setData(guild.id, 'ja');
     }
     updateActivity(client);
+    loggerChannel.send(`${guild.name} に参加しました。`);
 });
 
 client.on('guildDelete', guild => {
     removeData(guild.id);
     cleanupQueue(guild.id);
     updateActivity(client);
+    loggerChannel.send(`${guild.name} から退出しました。`);
 });
 
 // 1分おきにアクティビティを更新
 setInterval(() => {
     updateActivity(client);
+    updatePlayingGuild();
 }, 60000);
 
 function cleanupQueue(guildId) {
@@ -222,6 +235,7 @@ function cleanupQueue(guildId) {
 
 process.on('uncaughtException', (err) => {
     console.error(err);
+    errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
 });
 
 client.login(process.env.DISCORD_TOKEN);
