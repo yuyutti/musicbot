@@ -8,7 +8,6 @@ const language = require('../lang/src/playsong');
 const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
-    console.log(musicQueue)
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return cleanupQueue(guildId);
 
@@ -74,7 +73,6 @@ async function playSong(guildId, song) {
         });
         serverQueue.commandStatus.on('lang', async() => {
             const getLang = await lang(guildId);
-            console.log(getLang)
             serverQueue.language = getLang;
             serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
         });

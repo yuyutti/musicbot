@@ -204,7 +204,7 @@ client.on('guildDelete', guild => {
 // 1分おきにアクティビティを更新
 setInterval(() => {
     updateActivity(client);
-    updatePlayingGuild();
+    //updatePlayingGuild();
 }, 60000);
 
 function cleanupQueue(guildId) {
