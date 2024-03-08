@@ -6,6 +6,7 @@ const { playSong } = require('../src/playsong');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/commands/play');
 const { commandStatus } = require('../events/event');
+const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 module.exports = {
     data: {
@@ -40,6 +41,9 @@ module.exports = {
         let inputType = null;
         let playlistName;
         let addedCount = 0;
+
+        const loggerChannel = getLoggerChannel();
+        const errorChannel = getErrorChannel();
         
         if (interactionOrMessage.isCommand?.()) {
             songString = interactionOrMessage.options.getString('song');
@@ -160,29 +164,37 @@ module.exports = {
             if (serverQueue.songs.length === 1) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
                 interactionOrMessage.reply({ content: language.addPlaying[lang](serverQueue.songs[0].title) });
+                loggerChannel.send(`\`${interactionOrMessage.guild.name}\`で\`${serverQueue.songs[0].title}\`を再生します`);
             }
             else {
                 const lastSong = serverQueue.songs.length - 1;
                 interactionOrMessage.reply({ content: language.added[lang](serverQueue.songs[lastSong].title) });
+                loggerChannel.send(`\`${interactionOrMessage.guild.name}\`に\`${serverQueue.songs[lastSong].title}\`を追加しました`);
             }
         }
         else if (inputType === "yt_playlist") {
             interactionOrMessage.reply({ content: language.addToPlaylist[lang](addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                return loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でYouTubeプレイリストが\`${addedCount}\`件追加され、を再生を開始します`);
             }
+            loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でYouTubeプレイリストが\`${addedCount}\`件追加されました`);
         }
         else if (inputType === "sp_album") {
             interactionOrMessage.reply({ content: language.addedAlbum[lang](playlistName,addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                return loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でSpotifyアルバムが\`${addedCount}\`件追加され、を再生を開始します`);
             }
+            loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でSpotifyアルバムが\`${addedCount}\`件追加されました`);
         }
         else if (inputType === "sp_playlist") {
             interactionOrMessage.reply({ content: language.addedPlaylist[lang](playlistName,addedCount) });
             if (serverQueue.songs.length === addedCount) {
                 playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                return loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でSpotifyプレイリストが\`${addedCount}\`件追加され、を再生を開始します`);
             }
+            loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でSpotifyプレイリストが\`${addedCount}\`件追加されました`);
         }
     }
 };
@@ -214,7 +226,6 @@ async function addSpotifyTrackListToQueue(songString, serverQueue, userId, lang,
 
         const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
             const trackName = spotifyTrack.name;
-            console.log(trackName)
             const searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1 });
             if (searchResult.length > 0) {
                 const video = searchResult[0];

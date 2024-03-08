@@ -1,7 +1,9 @@
 const playdl = require('play-dl');
 const { queue: musicQueue } = require('./musicQueue');
+const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function autoplay (guildId) {
+    const errorChannel = getErrorChannel();
     try {
         const serverQueue = musicQueue.get(guildId);
         const videoInfo = await playdl.video_basic_info(serverQueue.songs[0].url);
@@ -19,6 +21,7 @@ async function autoplay (guildId) {
         return true
     } catch (error) {
         console.log(error)
+        errorChannel.send(`autoplay: \n\`\`\`${error}\`\`\``);
         return false
     }
 }

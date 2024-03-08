@@ -34,7 +34,14 @@ module.exports = {
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
     
         if (serverQueue.loop) return interactionOrMessage.reply(language.loopEnabled[lang]);
-        
+
+        if (serverQueue.autoPlay) {
+            await autoplay(interactionOrMessage.guildId);
+            serverQueue.songs.splice(0, 1);
+            playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+            return interactionOrMessage.reply(language.autoplayEnabled[lang]);
+        }
+
         let skipCount = 1;
         
         if (interactionOrMessage.isCommand?.()) skipCount = interactionOrMessage.options.getInteger('queuenumber') || 1;
