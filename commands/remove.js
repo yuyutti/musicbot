@@ -35,7 +35,7 @@ module.exports = {
     
         // コマンドがスラッシュコマンドから実行されたかどうかをチェック
         if (interactionOrMessage.isCommand?.()) {
-            const trackInput = interactionOrMessage.options.get('track_number'); // スラッシュコマンドで定義したオプション名
+            const trackInput = interactionOrMessage.options.get('track_number');
             if (trackInput && trackInput.value.toLowerCase() === 'all') {
                 if (serverQueue.songs.length === 1) {
                     return interactionOrMessage.reply(language.onlyOne[lang]);
@@ -56,6 +56,8 @@ module.exports = {
             }
             trackNumber = parseInt(args[0], 10);
         }
+
+        trackNumber + 1;
     
         if (!isNaN(trackNumber) && trackNumber > 0 && trackNumber < serverQueue.songs.length) {
             const removedSong = serverQueue.songs.splice(trackNumber, 1)[0];

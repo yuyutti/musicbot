@@ -83,7 +83,7 @@ client.on('messageCreate', async message => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`!**${message.guild.name}**で**${commandName}**が実行されました`);
+        loggerChannel.send(`**${message.guild.name}**で**!${commandName}**が実行されました`);
         await command.execute(message, args, language);
     }
     catch (error) {
@@ -107,7 +107,7 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`/**${interaction.guild.name}**で**${interaction.commandName}**が実行されました`);
+        loggerChannel.send(`**${interaction.guild.name}**で/**${interaction.commandName}**が実行されました`);
         await command.execute(interaction, args, language);
     }
     catch (error) {
