@@ -175,6 +175,7 @@ client.on('messageCreate', async message => {
 
 client.on('voiceStateUpdate', (oldState, newState) => {
     updateActivity(client);
+    updatePlayingGuild();
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
