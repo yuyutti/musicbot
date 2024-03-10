@@ -64,7 +64,8 @@ client.once('ready', async() => {
     errorChannel = getErrorChannel();
     console.log(`Logged in as ${client.user.tag}`);
     loggerChannel.send('Logged in as ' + client.user.tag);
-    updateActivity(client)
+    updateActivity(client);
+    updatePlayingGuild();
 });
 
 // コマンド待ち受け
@@ -204,7 +205,7 @@ client.on('guildDelete', guild => {
 // 1分おきにアクティビティを更新
 setInterval(() => {
     updateActivity(client);
-    //updatePlayingGuild();
+    updatePlayingGuild();
 }, 60000);
 
 function cleanupQueue(guildId) {
