@@ -1,7 +1,8 @@
 const { connection } = require('./connection');
-const { loggerChannel, errorChannel } = require('../src/log');
+const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 async function volume(guildId) {
+    const errorChannel = getErrorChannel();
     const query = 'SELECT volume FROM guild_settings WHERE guild_id = ?';
     try {
         const [rows] = await connection.execute(query, [guildId]);
@@ -33,4 +34,20 @@ async function lang(guildId) {
     }
 }
 
-module.exports = { volume, lang }
+async function removeWord(guildId) {
+    const query = 'SELECT removeWord FROM guild_settings WHERE guild_id = ?';
+    try {
+        const [rows] = await connection.execute(query, [guildId]);
+        if (rows.length > 0) {
+            return Boolean(rows[0].removeWord);
+        } else {
+            return false;
+        }
+    } catch (error) {
+        console.error('Failed to get removeWord:', error);
+        errorChannel.send(`Failed to get removeWord: \n\`\`\`${error}\`\`\``);
+        throw error;
+    }
+}
+
+module.exports = { volume, lang, removeWord }
