@@ -3,7 +3,7 @@ const { createAudioPlayer, NoSubscriberBehavior } = require('@discordjs/voice');
 const playdl = require('play-dl');
 const { queue: musicQueue } = require('../src/musicQueue');
 const { playSong } = require('../src/playsong');
-const { volume, lang } = require('../SQL/lockup');
+const { volume, lang, removeWord } = require('../SQL/lockup');
 const language = require('../lang/commands/play');
 const { commandStatus } = require('../events/event');
 const { getLoggerChannel, getErrorChannel } = require('../src/log');
@@ -196,6 +196,25 @@ module.exports = {
             }
             loggerChannel.send(`\`${interactionOrMessage.guild.name}\`でSpotifyプレイリストが\`${addedCount}\`件追加されました`);
         }
+        
+        const textChannelPermission = interactionOrMessage.channel.permissionsFor(interactionOrMessage.client.user);
+        if (serverQueue.removeWord && textChannelPermission.has(PermissionsBitField.Flags.ManageMessages)) {
+            console.log('removeWord');
+            try {
+                if (!interactionOrMessage.isCommand?.()) {
+                    setTimeout(async () => {
+                        try {
+                            await interactionOrMessage.delete();
+                            console.log('Message deleted after 3 seconds.');
+                        } catch (error) {
+                            console.error('Failed to delete message after delay:', error);
+                        }
+                    }, 3000);
+                }
+            } catch (error) {
+                console.error('Failed to delete message:', error);
+            }
+        }
     }
 };
 
@@ -254,6 +273,7 @@ async function createServerQueue(guildId, voiceChannel, textChannel) {
         voiceChannel,
         connection: null,
         language: await lang(guildId) || 'en',
+        removeWord: await removeWord(guildId) || false,
         loop: false,
         autoPlay: false,
         volume: await volume(guildId) || 10,

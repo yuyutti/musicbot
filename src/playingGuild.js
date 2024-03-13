@@ -29,7 +29,7 @@ function updatePlayingGuild() {
                 {name: 'Queue Length', value: value.songs.length.toString(), inline: true},
                 {name: `Play Time`, value: `${getTotalDuration(value)}`, inline: true},
                 {name: `Request By`, value: `<@${value.songs[0].requestBy}>`, inline: true},
-                {name: `status`, value: `Volume: \`${value.volume}%\` | Loop: \`${value.loop ? 'on' : 'off'}\` | AutoPlay: \`${value.autoPlay}\` | lang : \`${value.language}\``},
+                {name: `status`, value: `Volume: \`${value.volume}%\` | Loop: \`${value.loop ? 'ON' : 'Off'}\` | AutoPlay: \`${value.autoPlay ? 'ON' : 'Off' }\` | removeWord : \`${value.removeWord ? 'ON' : 'Off' }\` | lang : \`${value.language}\``},
             );
         });
     }

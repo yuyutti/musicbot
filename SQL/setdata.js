@@ -1,7 +1,9 @@
 const { connection } = require('./connection');
-const { loggerChannel, errorChannel } = require('../src/log');
+const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 async function setData(guildId, arg) {
+    const errorChannel = getErrorChannel();
+
     let query = `INSERT INTO guild_settings (guild_id`;
     let updateClause = `ON DUPLICATE KEY UPDATE `;
     let values = [guildId];
@@ -17,7 +19,15 @@ async function setData(guildId, arg) {
         query += `, lang) VALUES (?, ?) `;
         updateClause += `lang = VALUES(lang)`;
         values.push(arg);
-    } else {
+    } 
+
+    else if (arg === 'true' || arg === 'false') {
+        query += `, removeWord) VALUES (?, ?)`;
+        updateClause += `removeWord = VALUES(removeWord)`;
+        values.push(arg === 'true' ? 1 : 0);
+    }
+    
+    else {
         console.error('Invalid argument provided');
         errorChannel.send(`Invalid argument provided: \n\`\`\`${arg}\`\`\``);
         return;

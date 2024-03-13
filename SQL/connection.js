@@ -18,7 +18,8 @@ async function createTable() {
             CREATE TABLE IF NOT EXISTS guild_settings (
                 guild_id VARCHAR(255) NOT NULL PRIMARY KEY,
                 volume INT NOT NULL DEFAULT 10 CHECK (volume >= 0 AND volume <= 100),
-                lang ENUM('en', 'ja') NOT NULL DEFAULT 'en'
+                lang ENUM('en', 'ja') NOT NULL DEFAULT 'en',
+                removeURL TINYINT NOT NULL DEFAULT 0
             )
         `;
         await connection.execute(createTableQuery);

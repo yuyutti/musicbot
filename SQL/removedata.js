@@ -1,8 +1,9 @@
 // DBからデータを消す
 const { connection } = require('./connection');
-const { loggerChannel, errorChannel } = require('../src/log');
+const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 async function removeData(guildId) {
+    const errorChannel = getErrorChannel();
     const query = 'DELETE FROM guild_settings WHERE guild_id = ?';
     try {
         const [result] = await connection.execute(query, [guildId]);

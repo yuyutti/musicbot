@@ -82,6 +82,10 @@ async function playSong(guildId, song) {
         serverQueue.commandStatus.on('autoplay', async() => {
             serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
         });
+        serverQueue.commandStatus.on('removeWord', async() => {
+            console.log("removeWord event");
+            serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        });
 
         serverQueue.audioPlayer.once('stateChange', async(oldState, newState) => {
             if (newState.status === AudioPlayerStatus.Playing) {
@@ -216,7 +220,7 @@ function nowPlayingEmbed(guildId) {
         { name: language.Fields3_name[lan], value: language.Fields3_Value[lan](serverQueue)},
         { 
             name: language.Fields4_name[lan],
-            value: `Volume: \`${serverQueue.volume}%\` | Loop: \`${serverQueue.loop ? 'ON' : 'Off'}\` | AutoPlay: \`${serverQueue.autoPlay ? 'ON' : 'Off' }\` | lang : \`${serverQueue.language}\``
+            value: `Volume: \`${serverQueue.volume}%\` | Loop: \`${serverQueue.loop ? 'ON' : 'Off'}\` | AutoPlay: \`${serverQueue.autoPlay ? 'ON' : 'Off' }\` | removeWord : \`${serverQueue.removeWord ? 'ON' : 'Off' }\` | lang : \`${serverQueue.language}\``
         },
         { name: language.Fields5_name[lan], value: `<@${currentSong.requestBy}>` }
     )
