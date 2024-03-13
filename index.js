@@ -59,7 +59,7 @@ client.once('ready', async() => {
         }
     }
     // コマンド登録 テストするときはここにguildIdを指定する
-    await client.application.commands.set(commands,guildId);
+    await client.application.commands.set(commands);
     await fetchChannel(client);
     loggerChannel = getLoggerChannel();
     errorChannel = getErrorChannel();
