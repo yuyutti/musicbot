@@ -36,6 +36,8 @@ const errorChannelId = process.env.ERROR_CHANNEL_ID;
 let loggerChannel;
 let errorChannel;
 
+let isReady = false;
+
 client.once('ready', async() => {
     const commands = [];
     const commandsPath = path.join(__dirname, 'commands');
@@ -67,15 +69,17 @@ client.once('ready', async() => {
     loggerChannel.send('Logged in as ' + client.user.tag);
     updateActivity(client);
     updatePlayingGuild();
+    isReady = true;
 });
 
 // コマンド待ち受け
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
-    if (!message.content.startsWith(prefix) || message.author.bot) return;
-
     const language = await lang(message.guildId);
+    if (!isReady) return message.reply(globalLanguage.isReady[language]);
+    
+    if (!message.content.startsWith(prefix) || message.author.bot) return;
 
     const args = message.content.slice(prefix.length).trim().split(/ +/);
     const commandName = args.shift().toLowerCase();
@@ -97,12 +101,14 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
+    const language = await lang(interaction.guildId);
+    if (!isReady) return interaction.reply(globalLanguage.isReady[language]);
+
     if (interaction.deferred || interaction.replied) {
         console.log('このインタラクションは既に応答されています。');
         return;
     }
 
-    const language = await lang(interaction.guildId);
     const args = "いんたらくしょんだからないよ～ん"
     const command = client.commands.get(interaction.commandName);
 
@@ -198,8 +204,8 @@ client.on('guildCreate', guild => {
 });
 
 client.on('guildDelete', guild => {
-    removeData(guild.id);
     cleanupQueue(guild.id);
+    removeData(guild.id);
     updateActivity(client);
     loggerChannel.send(`${guild.name} から退出しました。`);
 });
@@ -210,11 +216,16 @@ setInterval(() => {
     updatePlayingGuild();
 }, 60000);
 
-function cleanupQueue(guildId) {
+function wait(seconds) {
+    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+
+async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
     if (serverQueue) {
         serverQueue.autoPlay = false;
         serverQueue.audioPlayer.removeAllListeners();
+        await wait(1);
         serverQueue.connection.destroy();
 
         if (serverQueue.playingMessage) {

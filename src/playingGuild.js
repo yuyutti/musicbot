@@ -4,6 +4,8 @@ const { queue } = require('./musicQueue');
 
 function updatePlayingGuild() {
     const channel = getPlayingGuildChannel();
+    if (!channel) return console.log('Statusチャンネルに接続できませんでした');
+
     const mapSize = queue.size;
 
     const embed = new EmbedBuilder()

@@ -121,7 +121,7 @@ module.exports = {
             
             case "sp_track":
                 const sp_track = await playdl.spotify(songString);
-                const trackName = sp_track.spotifyTrack.name;
+                const trackName = sp_track.name;
                 const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
                 if (sp_trackSearchResult.length > 0) {
                     const video = sp_trackSearchResult[0];

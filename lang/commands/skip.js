@@ -10,6 +10,10 @@ const lang = {
         ja: '曲を追加してください',
         en: 'Please add a song'
     },
+    queueEmpty: {
+        ja: 'キューが空です',
+        en: 'The queue is empty'
+    },
     loopEnabled: {
         ja: 'ループ再生が有効なため、スキップできません',
         en: 'Cannot skip because loop is enabled'
