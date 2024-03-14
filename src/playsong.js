@@ -62,6 +62,7 @@ async function playSong(guildId, song) {
             inlineVolume: true
         });
         resource.volume.setVolume(volumePurse(serverQueue.volume));
+        await wait(1);
         serverQueue.audioPlayer.play(resource);
         serverQueue.connection.subscribe(serverQueue.audioPlayer);
 
@@ -139,9 +140,7 @@ async function playSong(guildId, song) {
         });
         serverQueue.audioPlayer.on('stateChange', async(oldState, newState) => {
             if (newState.status === AudioPlayerStatus.Idle) {
-                if (serverQueue.loop) {
-                    playSong(guildId, serverQueue.songs[0]);
-                }
+                if (serverQueue.loop) playSong(guildId, serverQueue.songs[0]);
                 else if (serverQueue.autoPlay) {
                     if (serverQueue.songs.length > 1) {
                         serverQueue.songs.shift();
@@ -177,9 +176,14 @@ async function playSong(guildId, song) {
     }
 }
 
-function cleanupQueue(guildId) {
+function wait(seconds) {
+    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
+}
+
+async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
     if (serverQueue) {
+        await wait(1);
         serverQueue.connection.destroy();
         cleanupButtons(guildId)
         musicQueue.delete(guildId);

@@ -34,38 +34,39 @@ module.exports = {
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
     
         if (serverQueue.loop) return interactionOrMessage.reply(language.loopEnabled[lang]);
-
-        if (serverQueue.autoPlay) {
-            await autoplay(interactionOrMessage.guildId);
-            serverQueue.songs.splice(0, 1);
-            playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            return interactionOrMessage.reply(language.autoplayEnabled[lang]);
+    
+        // スキップ数の取得
+        let skipCount = 1;
+        if (interactionOrMessage.isCommand?.()) {
+            skipCount = interactionOrMessage.options.getInteger('queuenumber') || 1;
+        } else if (args.length > 0 && !isNaN(parseInt(args[0], 10))) {
+            skipCount = parseInt(args[0], 10);
         }
 
-        let skipCount = 1;
-        
-        if (interactionOrMessage.isCommand?.()) skipCount = interactionOrMessage.options.getInteger('queuenumber') || 1;
-        else if (args && args.length > 0 && !isNaN(parseInt(args[0], 10))) skipCount = parseInt(args[0], 10);
-        
+        // キューが空になるかオートプレイの確認
+        if (serverQueue.songs.length === 1) {
+            if (serverQueue.autoPlay) {
+                await autoplay(interactionOrMessage.guildId);
+                // autoplayが新たな曲をキューに追加したか確認
+                if (serverQueue.songs.length > 1) {
+                    serverQueue.songs.splice(0, skipCount);
+                    playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                    return interactionOrMessage.reply(language.autoplayEnabled[lang]);
+                }
+            }
+            return interactionOrMessage.reply(language.queueEmpty[lang]);
+        }
+    
+        // キューに十分な曲がない場合の処理
         if (skipCount >= serverQueue.songs.length) {
             return interactionOrMessage.reply(language.notEnoughSongs[lang](skipCount));
         }
-        
+    
+        // スキップ処理とキューの更新
         serverQueue.songs.splice(0, skipCount);
-        
-        if (serverQueue.songs.length > 0) {
-            playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            interactionOrMessage.reply(language.skipped[lang](skipCount));
-        }
-        else if (serverQueue.autoPlay) {
-            await autoplay(interactionOrMessage.guildId);
-            if (serverQueue.songs.length > 0) {
-                playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-                interactionOrMessage.reply(language.autoplayEnabled[lang]);
-            } else {
-                interactionOrMessage.reply(language.queueEmpty[lang]);
-            }
-        }
-        else interactionOrMessage.reply(language.queueEmpty[lang]);
+    
+        // 次の曲への移行
+        playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+        interactionOrMessage.reply(language.skipped[lang](skipCount));
     }
 };
