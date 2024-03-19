@@ -225,10 +225,9 @@ async function cleanupQueue(guildId) {
     if (serverQueue) {
         serverQueue.autoPlay = false;
         serverQueue.audioPlayer.removeAllListeners();
-        await wait(1);
         serverQueue.connection.destroy();
 
-        if (serverQueue.playingMessage) {
+        if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
             const disabledButtons = new ActionRowBuilder()
                 .addComponents(
                     serverQueue.playingMessage.components[0].components.map(button =>

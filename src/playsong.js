@@ -57,14 +57,25 @@ async function playSong(guildId, song) {
 
     try {
         const stream = await play.stream(song.url, { quality: 0, discordPlayerCompatibility: true });
+        const sendPlayingMessage = await serverQueue.textChannel.send("再生する準備をしています...");
+        serverQueue.playingMessage = sendPlayingMessage;
+
+        const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
+        let accumulatedSizeBytes = 0;
+
         const resource = createAudioResource(stream.stream, {
             inputType: stream.type,
             inlineVolume: true
         });
         resource.volume.setVolume(volumePurse(serverQueue.volume));
-        await wait(1);
-        serverQueue.audioPlayer.play(resource);
-        serverQueue.connection.subscribe(serverQueue.audioPlayer);
+
+        await new Promise((resolve, reject) => {
+            stream.stream.on('data', (chunk) => {
+                accumulatedSizeBytes += chunk.length;
+                if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
+            });
+            stream.stream.on('error', reject);
+        });
 
         serverQueue.commandStatus.on('volume', async() => {
             const getVolume = await volume(guildId);
@@ -133,11 +144,10 @@ async function playSong(guildId, song) {
                             .setEmoji('1206535035398787122')
                             .setStyle(ButtonStyle.Success)
                     );
-                const textChannel = serverQueue.textChannel;
-                const sendPlayingMessage = await textChannel.send({ embeds: [ nowPlayingEmbed(guildId) ], components: [ buttons, buttons2 ] });
-                serverQueue.playingMessage = sendPlayingMessage;
+                serverQueue.playingMessage.edit({ content: "", embeds: [ nowPlayingEmbed(guildId) ], components: [ buttons, buttons2 ] });
             }
         });
+
         serverQueue.audioPlayer.on('stateChange', async(oldState, newState) => {
             if (newState.status === AudioPlayerStatus.Idle) {
                 if (serverQueue.loop) playSong(guildId, serverQueue.songs[0]);
@@ -167,6 +177,8 @@ async function playSong(guildId, song) {
             cleanupQueue(guildId);
         });
 
+        serverQueue.audioPlayer.play(resource);
+        serverQueue.connection.subscribe(serverQueue.audioPlayer);
         console.log(`Now playing: ${song.title}`);
     }
     catch (error) {
@@ -176,14 +188,11 @@ async function playSong(guildId, song) {
     }
 }
 
-function wait(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
-}
+
 
 async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
     if (serverQueue) {
-        await wait(1);
         serverQueue.connection.destroy();
         cleanupButtons(guildId)
         musicQueue.delete(guildId);
@@ -192,7 +201,7 @@ async function cleanupQueue(guildId) {
 
 function cleanupButtons(guildId) {
     const serverQueue = musicQueue.get(guildId);
-    if (serverQueue.playingMessage) {
+    if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
         const disabledButtons = new ActionRowBuilder()
             .addComponents(
                 serverQueue.playingMessage.components[0].components.map(button =>
