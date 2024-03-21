@@ -9,7 +9,7 @@ const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
-    if (!song || !serverQueue) return cleanupQueue(guildId);
+    if (!song || !serverQueue) return await cleanupQueue(guildId);
 
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
@@ -59,6 +59,8 @@ async function playSong(guildId, song) {
         const stream = await play.stream(song.url, { quality: 0, discordPlayerCompatibility: true });
         const sendPlayingMessage = await serverQueue.textChannel.send("再生する準備をしています...");
         serverQueue.playingMessage = sendPlayingMessage;
+
+        if (!song || !serverQueue) return await cleanupQueue(guildId);
 
         const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
         let accumulatedSizeBytes = 0;
@@ -177,6 +179,7 @@ async function playSong(guildId, song) {
             cleanupQueue(guildId);
         });
 
+        if (!song || !serverQueue) return await cleanupQueue(guildId);
         serverQueue.audioPlayer.play(resource);
         serverQueue.connection.subscribe(serverQueue.audioPlayer);
         console.log(`Now playing: ${song.title}`);
@@ -188,38 +191,44 @@ async function playSong(guildId, song) {
     }
 }
 
-
-
 async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
-    if (serverQueue) {
-        serverQueue.connection.destroy();
-        cleanupButtons(guildId)
-        musicQueue.delete(guildId);
-    }
+    if (!serverQueue) return;
+
+    if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
+    
+    await cleanupButtons(guildId);
+
+    musicQueue.delete(guildId);
 }
 
-function cleanupButtons(guildId) {
+async function cleanupButtons(guildId) {
     const serverQueue = musicQueue.get(guildId);
+
     if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
-        const disabledButtons = new ActionRowBuilder()
-            .addComponents(
-                serverQueue.playingMessage.components[0].components.map(button =>
-                    ButtonBuilder.from(button).setDisabled(true)
+        try {
+            const components = serverQueue.playingMessage.components;
+            const disabledButtons = components.map(actionRow =>
+                new ActionRowBuilder().addComponents(
+                    actionRow.components.map(button =>
+                        ButtonBuilder.from(button).setDisabled(true)
+                    )
                 )
             );
-        const disabledButtons2 = new ActionRowBuilder()
-            .addComponents(
-                serverQueue.playingMessage.components[1].components.map(button =>
-                    ButtonBuilder.from(button).setDisabled(true)
-                )
-            );
-        serverQueue.playingMessage.edit({ components: [ disabledButtons, disabledButtons2 ] }).catch(console.error);
+
+            serverQueue.playingMessage.edit({ components: disabledButtons }).catch(console.error);
+        }
+        catch (error) {
+            console.error(`Failed to disable buttons for guild ID: ${guildId}:`, error);
+        }
     }
 }
 
 function nowPlayingEmbed(guildId) {
     const serverQueue = musicQueue.get(guildId);
+
+    if (!serverQueue || !Array.isArray(serverQueue.songs) || serverQueue.songs.length === 0) return;
+
     const currentSong = serverQueue.songs[0];
     const lan = serverQueue.language;
 
