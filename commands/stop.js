@@ -22,27 +22,36 @@ module.exports = {
     },
 };
 
-function cleanupQueue(guildId) {
+async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
     if (serverQueue) {
         serverQueue.autoPlay = false;
-        serverQueue.audioPlayer.removeAllListeners();
-        serverQueue.connection.destroy();
+        if (serverQueue.audioPlayer) {
+            serverQueue.audioPlayer.removeAllListeners();
+        }
+        if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") {
+            serverQueue.connection.destroy();
+        }
 
-        if (serverQueue.playingMessage) {
-            const disabledButtons = new ActionRowBuilder()
-                .addComponents(
-                    serverQueue.playingMessage.components[0].components.map(button =>
-                        ButtonBuilder.from(button).setDisabled(true)
-                    )
-                );
-            const disabledButtons2 = new ActionRowBuilder()
-                .addComponents(
-                    serverQueue.playingMessage.components[1].components.map(button =>
-                        ButtonBuilder.from(button).setDisabled(true)
-                    )
-                );
-            serverQueue.playingMessage.edit({ components: [ disabledButtons, disabledButtons2 ] }).catch(console.error);
+        if (serverQueue.playingMessage && Array.isArray(serverQueue.playingMessage.components)) {
+            try {
+                const disabledButtons = new ActionRowBuilder()
+                    .addComponents(
+                        serverQueue.playingMessage.components[0].components.map(button =>
+                            ButtonBuilder.from(button).setDisabled(true)
+                        )
+                    );
+                const disabledButtons2 = new ActionRowBuilder()
+                    .addComponents(
+                        serverQueue.playingMessage.components[1].components.map(button =>
+                            ButtonBuilder.from(button).setDisabled(true)
+                        )
+                    );
+                await serverQueue.playingMessage.edit({ components: [disabledButtons, disabledButtons2] });
+            }
+            catch (error) {
+                console.error('Failed to disable buttons:', error);
+            }
         }
         musicQueue.delete(guildId);
     }

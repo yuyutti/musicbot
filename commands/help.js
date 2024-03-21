@@ -2,8 +2,6 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ComponentTyp
 const language = require('../lang/commands/help');
 require('dotenv').config();
 
-
-
 module.exports = {
     data: {
         name: 'help',
@@ -48,7 +46,7 @@ module.exports = {
             page.addFields(
                 {
                     name: '\u200B',
-                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.2"
+                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.3"
                 },
             );
         });
