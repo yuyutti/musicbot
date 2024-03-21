@@ -2,8 +2,6 @@ const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, ComponentTyp
 const language = require('../lang/commands/help');
 require('dotenv').config();
 
-
-
 module.exports = {
     data: {
         name: 'help',
