@@ -39,14 +39,15 @@ module.exports = {
                 .setTitle(language.page3Title[lang])
                 .addFields(
                     { name: language.page3_addFields_name1[lang], value: language.page3_addFields_value1[lang] },
-                    { name: language.page3_addFields_name2[lang], value: language.page3_addFields_value2[lang] }
+                    { name: language.page3_addFields_name2[lang], value: language.page3_addFields_value2[lang] },
+                    { name: language.page3_addFields_name3[lang], value: language.page3_addFields_value3[lang] }
                 )
         ];
         helpPages.forEach(page => {
             page.addFields(
                 {
                     name: '\u200B',
-                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.3"
+                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.4"
                 },
             );
         });
