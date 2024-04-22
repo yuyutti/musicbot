@@ -114,6 +114,14 @@ const lang = {
         ja: 'ボットの言語設定を変更します。サポートされている言語のリストを表示することもできます。',
         en: 'Changes the bot\'s language settings. You can also display a list of supported languages.'
     },
+    page3_addFields_name3: {
+        ja: 'removeWord',
+        en: 'removeWord'
+    },
+    page3_addFields_value3: {
+        ja: 'Playコマンド実行時にURLが含まれている場合、メッセージを削除します。',
+        en: 'If a URL is included when the Play command is executed, the message will be deleted.'
+    },
     // ボタンリンクのラベル
     inviteButton: {
         ja: 'BOTを招待する',
