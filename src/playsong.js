@@ -47,6 +47,7 @@ async function playSong(guildId, song) {
             if (VoiceConnectionStatusFlag.Destroyed) return;
             VoiceConnectionStatusFlag.Destroyed = true
             loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**のVCから切断しました`);
+            cleanupQueue();
         }
         if (newState.status === VoiceConnectionStatus.Disconnected){
             if (VoiceConnectionStatusFlag.Disconnected) return;
