@@ -28,7 +28,11 @@ function getErrorChannel() {
 }
 
 function getPlayingGuildChannel() {
+    return playingGuildChannel;
+}
+
+function getPlayingGuildMessage() {
     return playingGuildMessage;
 }
 
-module.exports = { fetchChannel, getLoggerChannel, getErrorChannel, getPlayingGuildChannel };
+module.exports = { fetchChannel, getLoggerChannel, getErrorChannel, getPlayingGuildMessage, getPlayingGuildChannel };

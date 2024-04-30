@@ -1,10 +1,11 @@
 const { EmbedBuilder } = require('discord.js');
-const { getPlayingGuildChannel } = require('./log');
+const { getPlayingGuildMessage, getLoggerChannel } = require('./log');
 const { queue } = require('./musicQueue');
 
 function updatePlayingGuild() {
-    const channel = getPlayingGuildChannel();
-    if (!channel) return console.log('Statusチャンネルに接続できませんでした');
+    const channel = getPlayingGuildMessage();
+    const logger = getLoggerChannel();
+    if (!channel) return logger.send('Statusチャンネルに接続できませんでした');
 
     const mapSize = queue.size;
 
@@ -36,7 +37,12 @@ function updatePlayingGuild() {
         });
     }
 
-    channel.edit({embeds: [embed]});
+    try{
+        channel.edit({embeds: [embed]});
+    }
+    catch (error) {
+        channel.send({embeds: [embed]});
+    }
 }
 
 function getTotalDuration(value) {
