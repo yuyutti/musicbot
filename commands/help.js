@@ -47,7 +47,7 @@ module.exports = {
             page.addFields(
                 {
                     name: '\u200B',
-                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.4"
+                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.2.5"
                 },
             );
         });

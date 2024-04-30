@@ -28,11 +28,6 @@ const client = new Client({
 client.commands = new Collection();
 const prefix = "!";
 
-const clientId = process.env.CLIENT_ID;
-const guildId = process.env.GUILD_ID;
-const loggerChannelId = process.env.LOGGER_CHANNEL_ID;
-const errorChannelId = process.env.ERROR_CHANNEL_ID;
-
 let loggerChannel;
 let errorChannel;
 
@@ -105,8 +100,7 @@ client.on('interactionCreate', async interaction => {
     if (!isReady) return interaction.reply(globalLanguage.isReady[language]);
 
     if (interaction.deferred || interaction.replied) {
-        console.log('このインタラクションは既に応答されています。');
-        return;
+        return console.log('このインタラクションは既に応答されています。');
     }
 
     const args = "いんたらくしょんだからないよ～ん"
@@ -128,8 +122,7 @@ client.on('interactionCreate', async interaction => {
 // 音楽再生中のボタン待ち受け
 client.on('interactionCreate', async interaction => {
     if (interaction.deferred || interaction.replied) {
-        console.log('このインタラクションは既に応答されています。');
-        return;
+        return console.log('このインタラクションは既に応答されています。');
     }
 
     if (!interaction.isButton()) return;
