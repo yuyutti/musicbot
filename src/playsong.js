@@ -7,7 +7,6 @@ const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 const { getLoggerChannel, getErrorChannel } = require('./log');
 const updatePlayingGuild = require('./playingGuild');
-const updateActivity = require('./activity');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
@@ -203,7 +202,6 @@ async function cleanupQueue(guildId) {
     await cleanupButtons(guildId);
 
     musicQueue.delete(guildId);
-    updateActivity();
     updatePlayingGuild();
 }
 
