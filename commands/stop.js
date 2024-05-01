@@ -2,7 +2,6 @@ const { ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const { queue: musicQueue } = require('../src/musicQueue');
 const language = require('../lang/commands/stop');
 const updatePlayingGuild = require('../src/playingGuild');
-const updateActivity = require('../src/activity');
 
 module.exports = {
     data: {
@@ -56,7 +55,6 @@ async function cleanupQueue(guildId) {
             }
         }
         musicQueue.delete(guildId);
-        updateActivity();
         updatePlayingGuild();
     }
 }
