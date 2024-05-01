@@ -204,6 +204,7 @@ client.on('guildDelete', guild => {
     cleanupQueue(guild.id);
     removeData(guild.id);
     updateActivity(client);
+    updatePlayingGuild();
     loggerChannel.send(`${guild.name} から退出しました。`);
 });
 
@@ -245,6 +246,7 @@ async function cleanupQueue(guildId) {
             }
         }
         musicQueue.delete(guildId);
+        updatePlayingGuild();
     }
 }
 

@@ -6,6 +6,8 @@ const { autoplay } = require('./autoplay');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 const { getLoggerChannel, getErrorChannel } = require('./log');
+const updatePlayingGuild = require('./playingGuild');
+const updateActivity = require('./activity');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
@@ -47,6 +49,7 @@ async function playSong(guildId, song) {
             if (VoiceConnectionStatusFlag.Destroyed) return;
             VoiceConnectionStatusFlag.Destroyed = true
             loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**のVCから切断しました`);
+            cleanupQueue();
         }
         if (newState.status === VoiceConnectionStatus.Disconnected){
             if (VoiceConnectionStatusFlag.Disconnected) return;
@@ -200,6 +203,8 @@ async function cleanupQueue(guildId) {
     await cleanupButtons(guildId);
 
     musicQueue.delete(guildId);
+    updateActivity();
+    updatePlayingGuild();
 }
 
 async function cleanupButtons(guildId) {
