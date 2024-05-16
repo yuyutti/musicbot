@@ -1,14 +1,15 @@
 const { EmbedBuilder } = require('discord.js');
-const { getPlayingGuildMessage, getLoggerChannel } = require('./log');
+const { getStatusChannel, getStatusMessage, getLoggerChannel, getErrorChannel } = require('./log');
 const { queue } = require('./musicQueue');
 
 function updatePlayingGuild() {
-    const channel = getPlayingGuildMessage();
-    const logger = getLoggerChannel();
-    if (!channel) return logger.send('Statusチャンネルに接続できませんでした');
+    const statusChannel = getStatusChannel();
+    const statusMessage = getStatusMessage();
+    const loggerChannel = getLoggerChannel();
+    const errorChannel = getErrorChannel();
+    if (!statusChannel) return loggerChannel.send('Statusチャンネルに接続できませんでした');
 
     const mapSize = queue.size;
-
     const embed = new EmbedBuilder()
         .setTitle('Bot is Online!')
         .setColor('#00ff00')
@@ -26,7 +27,7 @@ function updatePlayingGuild() {
         queue.forEach((value, key) => {
             embed.addFields(
                 {name: '\u200B', value: '---------------------------------'},
-                {name: value.voiceChannel.guild.name, value: key.toString()},
+                {name: value.guildName, value: value.guildId},
                 {name: 'Now Playing', value: `[${value.songs[0].title}](${value.songs[0].url})`},
                 {name: 'Next Playing', value: value.songs[1] ? `[${value.songs[1].title}](${value.songs[1].url})` : 'なし'},
                 {name: 'Queue Length', value: value.songs.length.toString(), inline: true},
@@ -37,12 +38,18 @@ function updatePlayingGuild() {
         });
     }
 
-    try{
-        channel.edit({embeds: [embed]});
+    if (!statusMessage) {
+        statusChannel.send({embeds: [embed]});
+        return statusChannel.messages.fetch({limit: 1}).then(messages => {
+            const lastMessage = messages.first();
+            if (lastMessage) {
+                lastMessage.delete();
+            }
+        });
     }
-    catch (error) {
-        channel.send({embeds: [embed]});
-    }
+
+    return statusMessage.edit({embeds: [embed]});
+
 }
 
 function getTotalDuration(value) {

@@ -272,6 +272,8 @@ async function createServerQueue(guildId, voiceChannel, textChannel) {
         playingMessage: null,
         voiceChannel,
         connection: null,
+        guildName: voiceChannel.guild.name,
+        guildId: guildId,
         language: await lang(guildId) || 'en',
         removeWord: await removeWord(guildId) || false,
         loop: false,
