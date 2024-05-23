@@ -22,6 +22,14 @@ const lang = {
         ja: '音声チャンネルで発言する権限が必要です',
         en: 'Permission to speak in a voice channel is required'
     },
+    fullVoiceChannel: {
+        ja: '音声チャンネルが満員です',
+        en: 'The voice channel is full'
+    },
+    notFoundVoiceChannel: {
+        ja: '年齢制限のあるコンテンツ、または暴力的、性的なコンテンツのため再生できません',
+        en: 'Cannot be played due to age-restricted, violent or sexual content'
+    },
     notHit: {
         ja: '検索結果が見つかりませんでした',
         en: 'No search results found'

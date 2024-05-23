@@ -10,12 +10,20 @@ function updatePlayingGuild() {
     if (!statusChannel) return loggerChannel.send('Statusチャンネルに接続できませんでした');
 
     const mapSize = queue.size;
+    let hasValidServer = false;
     const embed = new EmbedBuilder()
         .setTitle('Bot is Online!')
         .setColor('#00ff00')
         .setTimestamp();
 
-    if (mapSize === 0) {
+    queue.forEach((value, key) => {
+        if (!value.songs[0].title) {
+            hasValidServer = true;
+            cleanupQueue(key);
+        }
+    });
+
+    if (mapSize === 0 | hasValidServer) {
         embed.setTitle('現在稼働しているサーバーはありません');
         embed.setDescription(`アクティブなボイスチャンネル: ${mapSize}`);
         embed.setColor('#FF0000');
@@ -70,6 +78,37 @@ function formatDuration(seconds) {
         hours ? String(minutes).padStart(2, '0') : minutes,
         String(secondsLeft).padStart(2, '0'),
     ].filter(Boolean).join(':');
+}
+
+async function cleanupQueue(guildId) {
+    const serverQueue = queue.get(guildId);
+    if (serverQueue) {
+        serverQueue.autoPlay = false;
+        if (serverQueue.audioPlayer) serverQueue.audioPlayer.removeAllListeners();
+        if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
+
+        if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
+            try {
+                const disabledButtons = new ActionRowBuilder()
+                    .addComponents(
+                        serverQueue.playingMessage.components[0].components.map(button =>
+                            ButtonBuilder.from(button).setDisabled(true)
+                        )
+                    );
+                const disabledButtons2 = new ActionRowBuilder()
+                    .addComponents(
+                        serverQueue.playingMessage.components[1].components.map(button =>
+                            ButtonBuilder.from(button).setDisabled(true)
+                        )
+                    );
+                await serverQueue.playingMessage.edit({ components: [disabledButtons, disabledButtons2] });
+            }
+            catch (error) {
+                console.error('Failed to disable buttons:', error);
+            }
+        }
+        queue.delete(guildId);
+    }
 }
 
 module.exports = updatePlayingGuild;

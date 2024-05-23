@@ -41,7 +41,11 @@ const lang = {
     autoPlayError: {
         ja: '自動再生の準備中にエラーが発生しました',
         en: 'An error occurred while preparing for auto play'
-    }
+    },
+    embedError: {
+        ja: 'ボイスチャンネルに正常に接続できなかったか、データが破損しているため再生を続行できません',
+        en: 'Either the connection to the voice channel failed or the data is corrupted, so playback cannot continue'
+    },
 }
 
 module.exports = lang;

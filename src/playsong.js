@@ -48,12 +48,12 @@ async function playSong(guildId, song) {
             if (VoiceConnectionStatusFlag.Destroyed) return;
             VoiceConnectionStatusFlag.Destroyed = true
             loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**のVCから切断しました`);
-            cleanupQueue();
+            cleanupQueue(guildId);
         }
         if (newState.status === VoiceConnectionStatus.Disconnected){
             if (VoiceConnectionStatusFlag.Disconnected) return;
             VoiceConnectionStatusFlag.Disconnected = true
-            cleanupQueue();
+            cleanupQueue(guildId);
         }
     })
 
@@ -195,8 +195,6 @@ async function playSong(guildId, song) {
 
 async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
-    if (!serverQueue) return;
-
     if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
     
     await cleanupButtons(guildId);
@@ -207,7 +205,8 @@ async function cleanupQueue(guildId) {
 
 async function cleanupButtons(guildId) {
     const serverQueue = musicQueue.get(guildId);
-
+    if (!serverQueue) return ;
+    
     if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
         try {
             const components = serverQueue.playingMessage.components;
@@ -230,7 +229,15 @@ async function cleanupButtons(guildId) {
 function nowPlayingEmbed(guildId) {
     const serverQueue = musicQueue.get(guildId);
 
-    if (!serverQueue || !Array.isArray(serverQueue.songs) || serverQueue.songs.length === 0) return;
+    if (!serverQueue || !Array.isArray(serverQueue.songs) || serverQueue.songs.length === 0) {
+        const nowPlayingEmbed = new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle(`Playing Error!`)
+            .setDescription(language.embedError["ja"] + `\n`+ language.embedError["en"])
+            .setTimestamp()
+            .setFooter({ text: 'DJ-Music', iconURL: 'https://cdn.discordapp.com/app-icons/1113282204064297010/9934a13736d8e8e012d6cb71a5f2107a.png?size=256' });
+        return nowPlayingEmbed
+    };
 
     const currentSong = serverQueue.songs[0];
     const lan = serverQueue.language;
