@@ -192,7 +192,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
         if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
-            return cleanupQueue(newState.guild.id) && cleanupButtons(newState.guild.id);
+            return cleanupButtons(newState.guild.id) && cleanupQueue(newState.guild.id);
         }
     }
 });
@@ -206,8 +206,8 @@ client.on('guildCreate', guild => {
 });
 
 client.on('guildDelete', guild => {
-    cleanupQueue(guild.id);
     cleanupButtons(guild.id);
+    cleanupQueue(guild.id);
     removeData(guild.id);
     loggerChannel.send(`${guild.name} から退出しました。`);
 });
