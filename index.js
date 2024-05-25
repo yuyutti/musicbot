@@ -8,10 +8,10 @@ const { setData } = require('./SQL/setdata');
 const { removeData } = require('./SQL/removedata');
 const { lang, volume } = require('./SQL/lockup');
 
-const{ queue: musicQueue } = require('./src/musicQueue');
 const globalLanguage = require('./lang/commands/global');
-const updateActivity = require('./src/activity');
-const updatePlayingGuild = require('./src/playingGuild');
+const { updateActivity, setClientInstant } = require('./src/activity');
+const { updatePlayingGuild } = require('./src/playingGuild');
+const { cleanupQueue, cleanupButtons } = require('./src/cleanUp');
 const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log');
 
 createTable();
@@ -55,19 +55,23 @@ client.once('ready', async() => {
             }
         }
     }
+
     // コマンド登録 テストするときはここにguildIdを指定する
     await client.application.commands.set(commands);
     await fetchChannel(client);
     loggerChannel = getLoggerChannel();
     errorChannel = getErrorChannel();
+
     console.log(`Logged in as ${client.user.tag}`);
     loggerChannel.send('Logged in as ' + client.user.tag);
-    updateActivity(client);
+
+    setClientInstant(client);
+    updateActivity();
     updatePlayingGuild();
     isReady = true;
 });
 
-// コマンド待ち受け
+// コマンド待ち受け //
 client.on('messageCreate', async message => {
     if (message.author.bot) return;
 
@@ -93,6 +97,7 @@ client.on('messageCreate', async message => {
         message.reply({ content: globalLanguage.error[language] , ephemeral: true });
     }
 });
+
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
@@ -119,7 +124,7 @@ client.on('interactionCreate', async interaction => {
     }
 });
 
-// 音楽再生中のボタン待ち受け
+// 音楽再生中のボタン待ち受け //
 client.on('interactionCreate', async interaction => {
     if (interaction.deferred || interaction.replied) {
         return console.log('このインタラクションは既に応答されています。');
@@ -178,7 +183,7 @@ client.on('messageCreate', async message => {
 });
 
 client.on('voiceStateUpdate', (oldState, newState) => {
-    updateActivity(client);
+    updateActivity();
     updatePlayingGuild();
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
@@ -187,7 +192,7 @@ client.on('voiceStateUpdate', (oldState, newState) => {
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
         if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
-            return cleanupQueue(newState.guild.id);
+            return cleanupQueue(newState.guild.id) && cleanupButtons(newState.guild.id);
         }
     }
 });
@@ -196,58 +201,22 @@ client.on('guildCreate', guild => {
     if (guild.preferredLocale === 'ja') {
         setData(guild.id, 'ja');
     }
-    updateActivity(client);
+    updateActivity();
     loggerChannel.send(`${guild.name} に参加しました。`);
 });
 
 client.on('guildDelete', guild => {
     cleanupQueue(guild.id);
+    cleanupButtons(guild.id);
     removeData(guild.id);
     loggerChannel.send(`${guild.name} から退出しました。`);
 });
 
 // 1分おきにアクティビティを更新
 setInterval(() => {
-    updateActivity(client);
+    updateActivity();
     updatePlayingGuild();
 }, 60000);
-
-function wait(seconds) {
-    return new Promise(resolve => setTimeout(resolve, seconds * 1000));
-}
-
-async function cleanupQueue(guildId) {
-    const serverQueue = musicQueue.get(guildId);
-    if (serverQueue) {
-        serverQueue.autoPlay = false;
-        if (serverQueue.audioPlayer) serverQueue.audioPlayer.removeAllListeners();
-        if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
-
-        if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
-            try {
-                const disabledButtons = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[0].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                const disabledButtons2 = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[1].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                await serverQueue.playingMessage.edit({ components: [disabledButtons, disabledButtons2] });
-            }
-            catch (error) {
-                console.error('Failed to disable buttons:', error);
-            }
-        }
-        musicQueue.delete(guildId);
-        updateActivity(client);
-        updatePlayingGuild();
-    }
-}
 
 process.on('uncaughtException', (err) => {
     console.error(err);

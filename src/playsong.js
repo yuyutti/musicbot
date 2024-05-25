@@ -1,12 +1,16 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, joinVoiceChannel } = require('@discordjs/voice');
 const play = require('play-dl');
-const { queue: musicQueue } = require('./musicQueue');
-const { autoplay } = require('./autoplay');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
+
+const { queue: musicQueue } = require('./musicQueue');
+const { autoplay } = require('./autoplay');
+const { cleanupQueue, cleanupButtons } = require('./cleanUp');
+const { updatePlayingGuild } = require('../src/playingGuild');
+const { updateActivity } = require('../src/activity');
+const { joinVC } = require('./vc');
 const { getLoggerChannel, getErrorChannel } = require('./log');
-const updatePlayingGuild = require('./playingGuild');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
@@ -21,18 +25,15 @@ async function playSong(guildId, song) {
         Destroyed: false,
         Disconnected: false
     }
-
-    serverQueue.connection = joinVoiceChannel({
-        channelId: serverQueue.voiceChannel.id,
-        guildId,
-        adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
-    });
+    joinVC(guildId)
     
     const lan = serverQueue.language;
     serverQueue.connection.removeAllListeners();
     serverQueue.audioPlayer.removeAllListeners();
     serverQueue.commandStatus.removeAllListeners();
     cleanupButtons(guildId);
+
+    updateActivity() && updatePlayingGuild();
 
     serverQueue.connection.on("stateChange", async(oldState,newState) => {
         if (newState.status === VoiceConnectionStatus.Connecting){
@@ -58,8 +59,8 @@ async function playSong(guildId, song) {
     })
 
     try {
-        const stream = await play.stream(song.url, { quality: 0, discordPlayerCompatibility: true });
         const sendPlayingMessage = await serverQueue.textChannel.send("再生する準備をしています...");
+        const stream = await play.stream(song.url, { quality: 0, discordPlayerCompatibility: true });
         serverQueue.playingMessage = sendPlayingMessage;
 
         if (!song || !serverQueue) return await cleanupQueue(guildId);
@@ -193,39 +194,6 @@ async function playSong(guildId, song) {
     }
 }
 
-async function cleanupQueue(guildId) {
-    const serverQueue = musicQueue.get(guildId);
-    if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
-    
-    await cleanupButtons(guildId);
-
-    musicQueue.delete(guildId);
-    updatePlayingGuild();
-}
-
-async function cleanupButtons(guildId) {
-    const serverQueue = musicQueue.get(guildId);
-    if (!serverQueue) return ;
-    
-    if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
-        try {
-            const components = serverQueue.playingMessage.components;
-            const disabledButtons = components.map(actionRow =>
-                new ActionRowBuilder().addComponents(
-                    actionRow.components.map(button =>
-                        ButtonBuilder.from(button).setDisabled(true)
-                    )
-                )
-            );
-
-            serverQueue.playingMessage.edit({ components: disabledButtons }).catch(console.error);
-        }
-        catch (error) {
-            console.error(`Failed to disable buttons for guild ID: ${guildId}:`, error);
-        }
-    }
-}
-
 function nowPlayingEmbed(guildId) {
     const serverQueue = musicQueue.get(guildId);
 
@@ -272,7 +240,6 @@ function formatDuration(seconds) {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secondsLeft = seconds % 60;
-
     return [
         hours,
         hours ? String(minutes).padStart(2, '0') : minutes,
