@@ -1,6 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
-const play = require('play-dl');
+// const play = require('play-dl');
+const ytdl = require('ytdl-core'); // play-dlで障害が発生しているため、ytdl-coreに切り替えて運用
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
@@ -41,7 +42,8 @@ async function playSong(guildId, song) {
     try {
         const [,stream] = await Promise.all([
             sendPlayingMessage(serverQueue),
-            play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
+            // play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
+            ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio' })
         ]);
         await prepareAndPlayStream(serverQueue, stream, song, guildId);
     } catch (error) {
@@ -98,7 +100,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 }
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
-    loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**再生を開始しました`);
+    loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
 }
@@ -134,21 +136,33 @@ async function sendPlayingMessage(serverQueue) {
 }
 
 async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
-    const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
+    //const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
+    const targetBufferSizeBytes = 75 * 1024;
     let accumulatedSizeBytes = 0;
 
-    const resource = createAudioResource(stream.stream, {
+    // const resource = createAudioResource(stream.stream, {
+    //     inputType: stream.type,
+    //     inlineVolume: true
+    // });
+    const resource = createAudioResource(stream, {
         inputType: stream.type,
         inlineVolume: true
     });
     resource.volume.setVolume(volumePurse(serverQueue.volume));
 
+    // await new Promise((resolve, reject) => {
+    //     stream.stream.on('data', (chunk) => {
+    //         accumulatedSizeBytes += chunk.length;
+    //         if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
+    //     });
+    //     stream.stream.on('error', reject);
+    // });
     await new Promise((resolve, reject) => {
-        stream.stream.on('data', (chunk) => {
+        stream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
-        stream.stream.on('error', reject);
+        stream.on('error', reject);
     });
 
     setupCommandStatusListeners(serverQueue, guildId, resource);
