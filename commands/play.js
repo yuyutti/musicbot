@@ -90,7 +90,7 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
     else if (multiLists.includes(stringType)) {
         const message = stringType === "yt_playlist"
             ? language.addToPlaylist[lang](addedCount) 
-            : stringType === "sp_album" 
+            : stringType === "sp_album"
             ? language.addedAlbum[lang](albumName, addedCount) 
             : language.addedPlaylist[lang](albumName, addedCount);
 
