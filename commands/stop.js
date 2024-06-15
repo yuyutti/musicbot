@@ -1,7 +1,8 @@
 const { ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const { queue: musicQueue } = require('../src/musicQueue');
 const language = require('../lang/commands/stop');
-const updatePlayingGuild = require('../src/playingGuild');
+const { cleanupQueue, cleanupButtons } = require('../src/cleanUp');
+
 
 module.exports = {
     data: {
@@ -18,43 +19,7 @@ module.exports = {
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
-        cleanupQueue(interactionOrMessage.guildId);
+        cleanupQueue(interactionOrMessage.guildId) && cleanupButtons(interactionOrMessage.guildId);
         interactionOrMessage.reply(language.stopped[lang]);
     },
 };
-
-async function cleanupQueue(guildId) {
-    const serverQueue = musicQueue.get(guildId);
-    if (serverQueue) {
-        serverQueue.autoPlay = false;
-        if (serverQueue.audioPlayer) {
-            serverQueue.audioPlayer.removeAllListeners();
-        }
-        if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") {
-            serverQueue.connection.destroy();
-        }
-
-        if (serverQueue.playingMessage && Array.isArray(serverQueue.playingMessage.components)) {
-            try {
-                const disabledButtons = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[0].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                const disabledButtons2 = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[1].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                await serverQueue.playingMessage.edit({ components: [disabledButtons, disabledButtons2] });
-            }
-            catch (error) {
-                console.error('Failed to disable buttons:', error);
-            }
-        }
-        musicQueue.delete(guildId);
-        updatePlayingGuild();
-    }
-}

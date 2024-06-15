@@ -38,6 +38,10 @@ const lang = {
         ja: 'リクエストユーザー',
         en: 'RequestBy'
     },
+    playing_preparation: {
+        ja: '再生する準備をしています...',
+        en: 'Preparing to play...'
+    },
     autoPlayError: {
         ja: '自動再生の準備中にエラーが発生しました',
         en: 'An error occurred while preparing for auto play'

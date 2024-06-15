@@ -111,4 +111,4 @@ async function cleanupQueue(guildId) {
     }
 }
 
-module.exports = updatePlayingGuild;
+module.exports = { updatePlayingGuild };
