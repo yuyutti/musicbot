@@ -43,7 +43,15 @@ async function playSong(guildId, song) {
         const [,stream] = await Promise.all([
             sendPlayingMessage(serverQueue),
             // play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
-            ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio' })
+            ytdl(song.url, { 
+                filter: "audioonly",
+                fmt: "mp3",
+                highWaterMark: 1 << 62,
+                liveBuffer: 1 << 62,
+                dlChunkSize: 0,
+                bitrate: 128,
+                quality: "lowestaudio",
+            })
         ]);
         await prepareAndPlayStream(serverQueue, stream, song, guildId);
     } catch (error) {
