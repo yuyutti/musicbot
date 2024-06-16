@@ -50,6 +50,10 @@ const lang = {
         ja: 'ボイスチャンネルに正常に接続できなかったか、データが破損しているため再生を続行できません',
         en: 'Either the connection to the voice channel failed or the data is corrupted, so playback cannot continue'
     },
+    warning: {
+        ja: ':warning: 現在YouTube側の問題により、正常に再生できない場合があります',
+        en: ':warning: Currently, due to a problem on YouTube side, you may not be able to play the video properly'
+    }
 }
 
 module.exports = lang;

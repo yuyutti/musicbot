@@ -1,7 +1,12 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
-// const play = require('play-dl');
-const ytdl = require('ytdl-core'); // play-dlで障害が発生しているため、ytdl-coreに切り替えて運用
+const play = require('play-dl');
+// const ytdl = require('ytdl-core'); // play-dlで障害が発生しているため、ytdl-coreに切り替えて運用
+const fs = require('fs');
+const path = require('path');
+
+const { refreshCookie } = require('./cookie');
+
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
@@ -40,18 +45,27 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        const [,stream] = await Promise.all([
+        const cookiePath = path.join(__dirname, '..', '.data', 'youtube.json');
+        const cookie = fs.readFileSync(cookiePath, 'utf8');
+        const cookiePurse = JSON.parse(cookie);
+        play.setToken({ // play-dlが不具合のためYouTubePremiumのcookieを設定
+            youtube: {
+                cookie: cookiePurse.cookie
+            }
+        });
+        const [,,stream] = await Promise.all([
+            refreshCookie(),
             sendPlayingMessage(serverQueue),
-            // play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
-            ytdl(song.url, { 
-                filter: "audioonly",
-                fmt: "mp3",
-                highWaterMark: 1 << 62,
-                liveBuffer: 1 << 62,
-                dlChunkSize: 0,
-                bitrate: 128,
-                quality: "lowestaudio",
-            })
+            play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
+            // ytdl(song.url, { 
+            //     filter: "audioonly",
+            //     fmt: "mp3",
+            //     highWaterMark: 1 << 62,
+            //     liveBuffer: 1 << 62,
+            //     dlChunkSize: 0,
+            //     bitrate: 128,
+            //     quality: "lowestaudio",
+            // })
         ]);
         await prepareAndPlayStream(serverQueue, stream, song, guildId);
     } catch (error) {
@@ -140,38 +154,38 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language] + `\n` + language.warning[serverQueue.language]);
 }
 
 async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
-    //const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
-    const targetBufferSizeBytes = 75 * 1024;
+    const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
+    // const targetBufferSizeBytes = 75 * 1024;
     let accumulatedSizeBytes = 0;
 
-    // const resource = createAudioResource(stream.stream, {
-    //     inputType: stream.type,
-    //     inlineVolume: true
-    // });
-    const resource = createAudioResource(stream, {
+    const resource = createAudioResource(stream.stream, {
         inputType: stream.type,
         inlineVolume: true
     });
+    // const resource = createAudioResource(stream, { //ytdl-core
+    //     inputType: stream.type,
+    //     inlineVolume: true
+    // });
     resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-    // await new Promise((resolve, reject) => {
-    //     stream.stream.on('data', (chunk) => {
-    //         accumulatedSizeBytes += chunk.length;
-    //         if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
-    //     });
-    //     stream.stream.on('error', reject);
-    // });
     await new Promise((resolve, reject) => {
-        stream.on('data', (chunk) => {
+        stream.stream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
-        stream.on('error', reject);
+        stream.stream.on('error', reject);
     });
+    // await new Promise((resolve, reject) => { //ytdl-core
+    //     stream.on('data', (chunk) => {
+    //         accumulatedSizeBytes += chunk.length;
+    //         if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
+    //     });
+    //     stream.on('error', reject);
+    // });
 
     setupCommandStatusListeners(serverQueue, guildId, resource);
     serverQueue.audioPlayer.play(resource);
