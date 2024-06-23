@@ -10,6 +10,8 @@ const { playSong } = require('./playsong');
 
 const queueFilePath = path.join(__dirname, '..','serverQueue.json');
 
+const language = require('../lang/src/shutdownHandler');
+
 const saveQueueToFile = (queue) => {
     console.log('Saving queue to file...');
 
@@ -72,7 +74,7 @@ const loadQueueFromFile = async (client) => {
             };
             musicQueue.set(key, serverQueue);
             playSong(value.guildId, serverQueue.songs[0]);
-            textChannel.send('再生を再開します。');
+            textChannel.send(language.reconnected[serverQueue.language]);
             console.log(`Restored queue for guild ${key}`);
         } catch (error) {
             console.error(`Failed to restore queue for guild ${key}:`, error);
