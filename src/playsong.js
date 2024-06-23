@@ -146,19 +146,26 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language] + `\n` + language.warning[serverQueue.language]);
+    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
 }
 
 async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
     const seekPosition = serverQueue.time.current;
 
     const ffmpegProcess = ffmpeg(stream.stream)
-        .setStartTime(seekPosition)
-        .format('opus')
-        .on('error', (err) => {
-            console.error('FFmpeg error:', err);
-            ffmpegProcess.kill('SIGKILL');
-        });
+    .setStartTime(seekPosition)
+    .audioBitrate('128k')
+    .audioFrequency(48000)
+    .noVideo()
+    .outputOptions([
+        '-analyzeduration', '0',
+        '-loglevel', 'error'
+    ])
+    .format('opus')
+    .on('error', (err) => {
+        console.error('FFmpeg error:', err);
+        ffmpegProcess.kill('SIGKILL');
+    });
 
     const ffmpegStream = ffmpegProcess.pipe();
 
@@ -189,26 +196,26 @@ function setupCommandStatusListeners(serverQueue, guildId, resource) {
         const getVolume = await volume(guildId);
         resource.volume.setVolume(volumePurse(getVolume));
         serverQueue.volume = getVolume;
-        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('lang', async () => {
         const getLang = await lang(guildId);
         serverQueue.language = getLang;
-        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('loop', async () => {
-        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('autoplay', async () => {
-        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('removeWord', async () => {
         console.log("removeWord event");
-        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 }
 
