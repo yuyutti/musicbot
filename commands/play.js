@@ -68,6 +68,7 @@ function parseInteractionOrMessage(interactionOrMessage, args) {
         };
     }
     else {
+        interactionOrMessage.channel.sendTyping();
         return {
             songString: args.join(' '),
             voiceChannel: interactionOrMessage.member.voice.channel,

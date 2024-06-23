@@ -1,12 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
-//const play = require('play-dl');
-const ytdl = require('ytdl-core'); // play-dlで障害が発生しているため、ytdl-coreに切り替えて運用
-const fs = require('fs');
-const path = require('path');
+const play = require('play-dl'); // 有志の方が作成したテスト版を使用
 
-const { refreshCookie } = require('./cookie');
-
+const ffmpeg = require('fluent-ffmpeg');
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
@@ -37,6 +33,7 @@ async function playSong(guildId, song) {
     serverQueue.audioPlayer.removeAllListeners();
     serverQueue.commandStatus.removeAllListeners();
     cleanupButtons(guildId);
+    clearInterval(serverQueue.time.interval);
 
     updateActivity();
     updatePlayingGuild();
@@ -45,31 +42,13 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        // const cookiePath = path.join(__dirname, '..', '.data', 'youtube.json');
-        // const cookie = fs.readFileSync(cookiePath, 'utf8');
-        // const cookiePurse = JSON.parse(cookie);
-        // play.setToken({ // play-dlが不具合のためYouTubePremiumのcookieを設定
-        //     youtube: {
-        //         cookie: cookiePurse.cookie
-        //     }
-        // });
+        console.log('Playing song:', song.title);
         const [,stream] = await Promise.all([
-            //refreshCookie(),
             sendPlayingMessage(serverQueue),
-            //play.stream(song.url, { quality: 0, discordPlayerCompatibility: true })
-            ytdl(song.url, { 
-                filter: "audioonly",
-                fmt: "mp3",
-                highWaterMark: 1 << 62,
-                liveBuffer: 1 << 62,
-                dlChunkSize: 0,
-                bitrate: 128,
-                quality: "lowestaudio",
-            })
+            play.stream(song.url, { quality: 0 })
         ]);
         await prepareAndPlayStream(serverQueue, stream, song, guildId);
     } catch (error) {
-        console.error('Error playing song:', error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
     }
@@ -109,7 +88,20 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
             handleIdleState(serverQueue, guildId);
-        } else if (newState.status === AudioPlayerStatus.Playing) {
+            clearInterval(serverQueue.time.interval);
+            serverQueue.time.interval = null;
+            serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+        }
+        else if (newState.status === AudioPlayerStatus.Playing) {
+            if (serverQueue.time.interval) return;
+            serverQueue.time.start = Date.now() - (serverQueue.time.current * 1000);
+            serverQueue.time.end = song.duration;
+            serverQueue.time.interval = setInterval(() => {
+                const now = Date.now();
+                const elapsed = Math.floor((now - serverQueue.time.start) / 1000);
+                serverQueue.time.current = elapsed;
+                console.log(`Start: ${serverQueue.time.start}, End: ${serverQueue.time.end}, Current: ${serverQueue.time.current}`);
+            }, 1000);
             await handlePlayingState(serverQueue, loggerChannel, guildId, song);
         }
     });
@@ -122,6 +114,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 }
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
+
     loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
@@ -158,33 +151,33 @@ async function sendPlayingMessage(serverQueue) {
 }
 
 async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
-    //const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
-    const targetBufferSizeBytes = 75 * 1024;
-    let accumulatedSizeBytes = 0;
+    const seekPosition = serverQueue.time.current;
 
-    // const resource = createAudioResource(stream.stream, {
-    //     inputType: stream.type,
-    //     inlineVolume: true
-    // });
-    const resource = createAudioResource(stream, { //ytdl-core
+    const ffmpegProcess = ffmpeg(stream.stream)
+        .setStartTime(seekPosition)
+        .format('opus')
+        .on('error', (err) => {
+            console.error('FFmpeg error:', err);
+            ffmpegProcess.kill('SIGKILL');
+        });
+
+    const ffmpegStream = ffmpegProcess.pipe();
+
+    const resource = createAudioResource(ffmpegStream, {
         inputType: stream.type,
         inlineVolume: true
     });
     resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-    // await new Promise((resolve, reject) => {
-    //     stream.stream.on('data', (chunk) => {
-    //         accumulatedSizeBytes += chunk.length;
-    //         if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
-    //     });
-    //     stream.stream.on('error', reject);
-    // });
-    await new Promise((resolve, reject) => { //ytdl-core
-        stream.on('data', (chunk) => {
+    const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 10) ? 75 * 1024 : stream.per_sec_bytes * 10;
+    let accumulatedSizeBytes = 0;
+
+    await new Promise((resolve, reject) => {
+        ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
-        stream.on('error', reject);
+        ffmpegStream.on('error', reject);
     });
 
     setupCommandStatusListeners(serverQueue, guildId, resource);

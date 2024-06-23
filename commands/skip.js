@@ -51,6 +51,9 @@ module.exports = {
                 if (serverQueue.songs.length > 1) {
                     serverQueue.songs.splice(0, skipCount);
                     playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+                    clearInterval(serverQueue.time.interval);
+                    serverQueue.time.interval = null;
+                    serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
                     return interactionOrMessage.reply(language.autoplayEnabled[lang]);
                 }
             }
@@ -67,6 +70,9 @@ module.exports = {
     
         // 次の曲への移行
         playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+        clearInterval(serverQueue.time.interval);
+        serverQueue.time.interval = null;
+        serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
         interactionOrMessage.reply(language.skipped[lang](skipCount));
     }
 };

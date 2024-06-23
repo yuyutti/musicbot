@@ -14,6 +14,7 @@ module.exports = {
         }
     },
     async execute(interactionOrMessage, args, lang) {
+        interactionOrMessage.channel.sendTyping();
         const topUrl = lang === 'ja' ? process.env.TOP_URL_JA : process.env.TOP_URL_EN;
         const privacyUrl = lang === 'ja' ? process.env.PRIVACY_URL_JA : process.env.PRIVACY_URL_EN;
         const helpPages = [
@@ -47,7 +48,7 @@ module.exports = {
             page.addFields(
                 {
                     name: '\u200B',
-                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.3.2"
+                    value: language.footer1[lang] + '\n' + language.footer2[lang](topUrl, privacyUrl) + " / " + "v2.3.3"
                 },
             );
         });

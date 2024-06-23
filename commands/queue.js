@@ -15,6 +15,7 @@ module.exports = {
     },
     alias: ['q'],
     async execute(interactionOrMessage, args, lang) {
+        interactionOrMessage.channel.sendTyping();
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
 
