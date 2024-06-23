@@ -24,6 +24,8 @@ module.exports = {
         }
         else {
             serverQueue.audioPlayer.pause();
+            clearInterval(serverQueue.time.interval);
+            serverQueue.time.interval = null;
             interactionOrMessage.reply(language.paused[lang]);
         }
     },

@@ -14,6 +14,8 @@ const { updatePlayingGuild } = require('./src/playingGuild');
 const { cleanupQueue, cleanupButtons } = require('./src/cleanUp');
 const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log');
 
+const { loadQueueFromFile } = require('./src/shutdownHandler');
+
 createTable();
 
 const client = new Client({
@@ -69,6 +71,8 @@ client.once('ready', async() => {
     updateActivity();
     updatePlayingGuild();
     isReady = true;
+
+    loadQueueFromFile(client);
 });
 
 // コマンド待ち受け //
@@ -182,7 +186,8 @@ client.on('messageCreate', async message => {
     }
 });
 
-client.on('voiceStateUpdate', (oldState, newState) => {
+client.on('voiceStateUpdate', async(oldState, newState) => {
+    await new Promise(resolve => setTimeout(resolve, 2000));
     updateActivity();
     updatePlayingGuild();
     const oldVoiceChannel = oldState.channel;
@@ -216,7 +221,7 @@ client.on('guildDelete', guild => {
 setInterval(() => {
     updateActivity();
     updatePlayingGuild();
-}, 60000);
+}, 30000);
 
 process.on('uncaughtException', (err) => {
     console.error(err);

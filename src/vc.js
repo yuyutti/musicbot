@@ -33,4 +33,13 @@ function joinVC(guildId) {
     });
 }
 
-module.exports = { checkPermissions, joinVC };
+async function reconnectVC() {
+    for (const [guildId, serverQueue] of musicQueue.entries()) {
+        if (serverQueue) {
+            joinVC(guildId);
+            await playSong(guildId, serverQueue.songs[0]);
+        }
+    }
+}
+
+module.exports = { checkPermissions, joinVC, reconnectVC };
