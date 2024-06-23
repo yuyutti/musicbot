@@ -100,7 +100,6 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
                 const now = Date.now();
                 const elapsed = Math.floor((now - serverQueue.time.start) / 1000);
                 serverQueue.time.current = elapsed;
-                console.log(`Start: ${serverQueue.time.start}, End: ${serverQueue.time.end}, Current: ${serverQueue.time.current}`);
             }, 1000);
             await handlePlayingState(serverQueue, loggerChannel, guildId, song);
         }
