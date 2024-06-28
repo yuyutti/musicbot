@@ -34,6 +34,8 @@ async function playSong(guildId, song) {
     serverQueue.commandStatus.removeAllListeners();
     cleanupButtons(guildId);
     clearInterval(serverQueue.time.interval);
+    serverQueue.time.interval = null;
+    if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
 
     updateActivity();
     updatePlayingGuild();
@@ -152,28 +154,30 @@ async function sendPlayingMessage(serverQueue) {
 async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
     const seekPosition = serverQueue.time.current;
 
-    const ffmpegProcess = ffmpeg(stream.stream)
+    serverQueue.ffmpegProcess = ffmpeg(stream.stream)
     .setStartTime(seekPosition)
     .audioBitrate('128k')
     .audioFrequency(48000)
     .noVideo()
+    .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
     .outputOptions([
         '-analyzeduration', '0',
         '-loglevel', 'error'
     ])
     .format('opus')
-    .on('error', (err) => {
-        console.error('FFmpeg error:', err);
-        ffmpegProcess.kill('SIGKILL');
+    .on('error', (error) => {
+        if (error.message.includes('SIGKILL')) return;
+        console.error('FFmpeg error:', error);
+        getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const ffmpegStream = ffmpegProcess.pipe();
+    const ffmpegStream = serverQueue.ffmpegProcess.pipe();
 
-    const resource = createAudioResource(ffmpegStream, {
+    serverQueue.resource = createAudioResource(ffmpegStream, {
         inputType: stream.type,
         inlineVolume: true
     });
-    resource.volume.setVolume(volumePurse(serverQueue.volume));
+    serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
     const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 10) ? 75 * 1024 : stream.per_sec_bytes * 10;
     let accumulatedSizeBytes = 0;
@@ -186,35 +190,40 @@ async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
         ffmpegStream.on('error', reject);
     });
 
-    setupCommandStatusListeners(serverQueue, guildId, resource);
-    serverQueue.audioPlayer.play(resource);
+    setupCommandStatusListeners(serverQueue, guildId);
+    serverQueue.audioPlayer.play(serverQueue.resource);
     serverQueue.connection.subscribe(serverQueue.audioPlayer);
 }
 
-function setupCommandStatusListeners(serverQueue, guildId, resource) {
+function setupCommandStatusListeners(serverQueue, guildId) {
     serverQueue.commandStatus.on('volume', async () => {
         const getVolume = await volume(guildId);
-        resource.volume.setVolume(volumePurse(getVolume));
+        serverQueue.resource.volume.setVolume(volumePurse(getVolume));
         serverQueue.volume = getVolume;
+        const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('lang', async () => {
         const getLang = await lang(guildId);
         serverQueue.language = getLang;
+        const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('loop', async () => {
+        const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('autoplay', async () => {
+        const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 
     serverQueue.commandStatus.on('removeWord', async () => {
         console.log("removeWord event");
+        const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
 }

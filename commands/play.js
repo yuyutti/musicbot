@@ -92,7 +92,7 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
         const message = stringType === "yt_playlist"
             ? language.addToPlaylist[lang](addedCount) 
             : stringType === "sp_album"
-            ? language.addedAlbum[lang](albumName, addedCount) 
+            ? language.addedAlbum[lang](albumName, addedCount)
             : language.addedPlaylist[lang](albumName, addedCount);
 
         await interactionOrMessage.reply({ content: message });

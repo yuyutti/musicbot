@@ -50,6 +50,7 @@ module.exports = {
                 // autoplayが新たな曲をキューに追加したか確認
                 if (serverQueue.songs.length > 1) {
                     serverQueue.songs.splice(0, skipCount);
+                    serverQueue.ffmpegProcess.kill('SIGKILL');
                     playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
                     clearInterval(serverQueue.time.interval);
                     serverQueue.time.interval = null;
@@ -69,6 +70,7 @@ module.exports = {
         serverQueue.songs.splice(0, skipCount);
     
         // 次の曲への移行
+        serverQueue.ffmpegProcess.kill('SIGKILL');
         playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
         clearInterval(serverQueue.time.interval);
         serverQueue.time.interval = null;
