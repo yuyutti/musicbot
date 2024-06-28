@@ -59,6 +59,8 @@ const loadQueueFromFile = async (client) => {
                 volume: await volume(value.guildId) || 10,
                 commandStatus: new commandStatus(),
                 songs: value.songs,
+                ffmpegProcess: null,
+                resource: null,
                 audioPlayer: createAudioPlayer({
                     behaviors: {
                         noSubscriber: NoSubscriberBehavior.Pause
