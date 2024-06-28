@@ -1,5 +1,5 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
-const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
+const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const play = require('play-dl'); // 有志の方が作成したテスト版を使用
 
 const ffmpeg = require('fluent-ffmpeg');
@@ -162,7 +162,7 @@ async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
     .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
     .outputOptions([
         '-analyzeduration', '0',
-        '-loglevel', 'error'
+        '-loglevel', 'error',
     ])
     .format('opus')
     .on('error', (error) => {
@@ -174,7 +174,7 @@ async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
     const ffmpegStream = serverQueue.ffmpegProcess.pipe();
 
     serverQueue.resource = createAudioResource(ffmpegStream, {
-        inputType: stream.type,
+        inputType: StreamType.WebmOpus,
         inlineVolume: true
     });
     serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
