@@ -18,7 +18,6 @@ module.exports = {
     alias: ['dc'],
     async execute(interactionOrMessage, args, lang) {
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
-        serverQueue.audioPlayer.stop();
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
         cleanupQueue(interactionOrMessage.guildId) && cleanupButtons(interactionOrMessage.guildId);
         interactionOrMessage.reply(language.stopped[lang]);
