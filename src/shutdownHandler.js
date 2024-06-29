@@ -61,6 +61,7 @@ const loadQueueFromFile = async (client) => {
                 songs: value.songs,
                 ffmpegProcess: null,
                 resource: null,
+                stream: null,
                 audioPlayer: createAudioPlayer({
                     behaviors: {
                         noSubscriber: NoSubscriberBehavior.Pause
