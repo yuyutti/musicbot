@@ -45,11 +45,9 @@ async function playSong(guildId, song) {
 
     try {
         console.log('Playing song:', song.title);
-        const [,stream] = await Promise.all([
-            sendPlayingMessage(serverQueue),
-            play.stream(song.url, { quality: 0 })
-        ]);
-        await prepareAndPlayStream(serverQueue, stream, song, guildId);
+        serverQueue.stream = await play.stream(song.url, { quality: 0 });
+        await sendPlayingMessage(serverQueue);
+        await prepareAndPlayStream(serverQueue, guildId);
     } catch (error) {
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
@@ -151,10 +149,10 @@ async function sendPlayingMessage(serverQueue) {
     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
 }
 
-async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
+async function prepareAndPlayStream(serverQueue, guildId) {
     const seekPosition = serverQueue.time.current;
 
-    serverQueue.ffmpegProcess = ffmpeg(stream.stream)
+    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
     .audioBitrate('128k')
     .audioFrequency(48000)
@@ -179,7 +177,7 @@ async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
     });
     serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-    const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 10) ? 75 * 1024 : stream.per_sec_bytes * 10;
+    const targetBufferSizeBytes = isNaN(serverQueue.stream.per_sec_bytes * 10) ? 75 * 1024 : serverQueue.stream.per_sec_bytes * 10;
     let accumulatedSizeBytes = 0;
 
     await new Promise((resolve, reject) => {

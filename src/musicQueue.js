@@ -21,6 +21,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         songs: [],
         ffmpegProcess: null,
         resource: null,
+        stream: null,
         audioPlayer: createAudioPlayer({
             behaviors: {
                 noSubscriber: NoSubscriberBehavior.Pause
