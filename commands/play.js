@@ -44,7 +44,7 @@ module.exports = {
             const stringType = await playdl.validate(songString);
             if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
 
-            const { addedCount, songs, name } = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
+            const { addedCount, songs, name, related_videos } = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
             if (addedCount === 0) return;
 
             const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
@@ -83,7 +83,7 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
 
     if (singleLists.includes(stringType)) {
         await interactionOrMessage.reply({ content: isPlaying ? language.addPlaying[lang](serverQueue.songs[0].title) : language.added[lang](serverQueue.songs.slice(-1)[0].title) });
-        loggerChannel.send(`\`${interactionOrMessage.guild.name}\`に\`${serverQueue.songs.slice(-1)[0].title}\`を追加しました`);
+        loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**に**${serverQueue.songs.slice(-1)[0].title}**を追加しました`);
         if (isPlaying) {
             playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
         }
@@ -98,9 +98,9 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
         await interactionOrMessage.reply({ content: message });
         if (serverQueue.songs.length === addedCount) {
             playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            loggerChannel.send(`\`${interactionOrMessage.guild.name}\`で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が\`${addedCount}\`件追加され、再生を開始します`);
+            loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が**${addedCount}**件追加され、再生を開始します`);
         } else {
-            loggerChannel.send(`\`${interactionOrMessage.guild.name}\`で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が\`${addedCount}\`件追加されました`);
+            loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が**${addedCount}**件追加されました`);
         }
     }
 }

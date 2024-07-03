@@ -61,7 +61,7 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
             case VoiceConnectionStatus.Connecting:
                 if (!voiceStatusFlags.Connecting) {
                     voiceStatusFlags.Connecting = true;
-                    loggerChannel.send(`**${guildName}**のVCに接続しました`);
+                    loggerChannel.send(`playing: **${guildName}**のVCに接続しました`);
                 }
                 break;
             case VoiceConnectionStatus.Ready:
@@ -70,7 +70,7 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
             case VoiceConnectionStatus.Destroyed:
                 if (!voiceStatusFlags.Destroyed) {
                     voiceStatusFlags.Destroyed = true;
-                    loggerChannel.send(`**${guildName}**のVCから切断しました`);
+                    loggerChannel.send(`playing: **${guildName}**のVCから切断しました`);
                     cleanupQueue(guildId);
                 }
                 break;
@@ -114,7 +114,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
 
-    loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
+    loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
 }

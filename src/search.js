@@ -28,7 +28,7 @@ async function handleSongType(stringType, songString, userId, lang, interactionO
             await interactionOrMessage.reply({ content: language.notSupportService[lang], ephemeral: true });
             break;
     }
-    return { addedCount: songs.length, songs, name};
+    return { addedCount: songs.length, songs, name };
 }
 
 async function addYouTubeVideo(songString, userId, interactionOrMessage, lang) {

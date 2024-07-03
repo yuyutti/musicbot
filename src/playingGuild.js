@@ -11,6 +11,8 @@ function updatePlayingGuild() {
     if (!statusChannel) return loggerChannel.send('Statusチャンネルに接続できませんでした');
 
     const mapSize = queue.size;
+    let listener = 0;
+
     let hasValidServer = false;
     const embed = new EmbedBuilder()
         .setTitle('Bot is Online!')
@@ -18,25 +20,32 @@ function updatePlayingGuild() {
         .setTimestamp();
 
     queue.forEach((value, key) => {
+
         if (!value.songs[0].title) {
             hasValidServer = true;
             cleanupQueue(key);
         }
+
+        if (value.voiceChannel && value.voiceChannel.members) {
+            listener += value.voiceChannel.members.size -1;
+        }
+
     });
 
     if (mapSize === 0 | hasValidServer) {
         embed.setTitle('現在稼働しているサーバーはありません');
-        embed.setDescription(`アクティブなボイスチャンネル: ${mapSize}`);
+        embed.setDescription(`アクティブなボイスチャンネル: **${mapSize}VC** | 総リスナー: **${listener}人**`);
         embed.setColor('#FF0000');
     }
     else {
         embed.setTitle('現在稼働しているサーバーリスト');
-        embed.setDescription(`アクティブなボイスチャンネル: **${mapSize}VC**`);
+        embed.setDescription(`アクティブなボイスチャンネル: **${mapSize}VC** | 総リスナー: **${listener}人**`);
         embed.setColor('#00ffff');
         queue.forEach((value, key) => {
             embed.addFields(
                 {name: '\u200B', value: '---------------------------------'},
-                {name: value.guildName, value: value.guildId},
+                {name: value.guildName, value: value.guildId, inline: true },
+                {name: 'listener', value: (value.voiceChannel.members.size - 1).toString(), inline: true },
                 {name: 'Now Playing', value: `[${value.songs[0].title}](${value.songs[0].url})`},
                 {name: 'Next Playing', value: value.songs[1] ? `[${value.songs[1].title}](${value.songs[1].url})` : 'なし'},
                 {name: 'Queue Length', value: value.songs.length.toString(), inline: true},
@@ -58,7 +67,6 @@ function updatePlayingGuild() {
     }
 
     return statusMessage.edit({embeds: [embed]});
-
 }
 
 async function cleanupQueue(guildId) {
