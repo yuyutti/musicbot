@@ -7,24 +7,10 @@ const { commandStatus } = require('../events/event');
 const { volume, lang, removeWord } = require('../SQL/lockup');
 
 const { playSong } = require('./playsong');
-
 const queueFilePath = path.join(__dirname, '..','serverQueue.json');
-
 const language = require('../lang/src/shutdownHandler');
 
-const saveQueueToFile = (queue) => {
-    console.log('Saving queue to file...');
-
-    const queueCopy = new Map(
-        Array.from(queue.entries()).map(([key, value]) => {
-            const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time, game } = value;
-            return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
-        })
-    );
-
-    fs.writeFileSync(queueFilePath, JSON.stringify(Array.from(queueCopy.entries()), getCircularReplacer(), 4));
-    console.log('Queue saved successfully.');
-};
+const { shutdownActivity } = require('./activity');
 
 const loadQueueFromFile = async (client) => {
     if (!fs.existsSync(queueFilePath)) {
@@ -99,27 +85,42 @@ const getCircularReplacer = () => {
     };
 };
 
+const saveQueueToFile = async(queue) => {
+    console.log('Saving queue to file...');
+    await shutdownActivity();  // 非同期関数を待機
+
+    const queueCopy = new Map(
+        Array.from(queue.entries()).map(([key, value]) => {
+            const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time, game } = value;
+            return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
+        })
+    );
+
+    fs.writeFileSync(queueFilePath, JSON.stringify(Array.from(queueCopy.entries()), getCircularReplacer(), 4));
+    console.log('Queue saved successfully.');
+};
+
+let shutdownInitiated = false;
+
+const handleShutdown = async (signal) => {
+    if (!shutdownInitiated) {
+        shutdownInitiated = true;
+        console.log(`${signal} received, shutting down...`);
+        await saveQueueToFile(musicQueue);  // 非同期関数を待機
+        process.exit();
+    }
+};
+
+// 各シグナルに対してシャットダウンハンドラを設定
+['SIGINT', 'SIGTERM', 'SIGHUP'].forEach((signal) => {
+    process.on(signal, () => handleShutdown(signal));
+});
+
+// 他のプロセス終了イベントにも対応
 process.on('exit', (code) => {
-    saveQueueToFile(musicQueue);
-});
-
-process.on('beforeExit', (code) => {
-    saveQueueToFile(musicQueue);
-});
-
-process.on('SIGINT', () => {
-    saveQueueToFile(musicQueue);
-    process.exit();
-});
-
-process.on('SIGTERM', () => {
-    saveQueueToFile(musicQueue);
-    process.exit();
-});
-
-process.on('SIGHUP', () => {
-    saveQueueToFile(musicQueue);
-    process.exit();
+    if (!shutdownInitiated) {
+        handleShutdown('exit');
+    }
 });
 
 module.exports = {

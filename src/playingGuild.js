@@ -1,6 +1,7 @@
 const { EmbedBuilder } = require('discord.js');
 const { getStatusChannel, getStatusMessage, getLoggerChannel, getErrorChannel } = require('./log');
 const { queue } = require('./musicQueue');
+const { updateActivity } = require('./activity');
 
 function updatePlayingGuild() {
     const statusChannel = getStatusChannel();
@@ -60,6 +61,18 @@ function updatePlayingGuild() {
 
 }
 
+async function cleanupQueue(guildId) {
+    const serverQueue = musicQueue.get(guildId);
+    if (!serverQueue) return ;
+    if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
+
+    if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
+    if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
+    musicQueue.delete(guildId);
+    updateActivity();
+    updatePlayingGuild();
+}
+
 function getTotalDuration(value) {
     let totalDuration = 0;
     for (const song of value.songs) {
@@ -78,37 +91,6 @@ function formatDuration(seconds) {
         hours ? String(minutes).padStart(2, '0') : minutes,
         String(secondsLeft).padStart(2, '0'),
     ].filter(Boolean).join(':');
-}
-
-async function cleanupQueue(guildId) {
-    const serverQueue = queue.get(guildId);
-    if (serverQueue) {
-        serverQueue.autoPlay = false;
-        if (serverQueue.audioPlayer) serverQueue.audioPlayer.removeAllListeners();
-        if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
-
-        if (serverQueue.playingMessage && serverQueue.playingMessage.components) {
-            try {
-                const disabledButtons = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[0].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                const disabledButtons2 = new ActionRowBuilder()
-                    .addComponents(
-                        serverQueue.playingMessage.components[1].components.map(button =>
-                            ButtonBuilder.from(button).setDisabled(true)
-                        )
-                    );
-                await serverQueue.playingMessage.edit({ components: [disabledButtons, disabledButtons2] });
-            }
-            catch (error) {
-                console.error('Failed to disable buttons:', error);
-            }
-        }
-        queue.delete(guildId);
-    }
 }
 
 module.exports = { updatePlayingGuild };
