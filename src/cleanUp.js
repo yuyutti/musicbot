@@ -8,8 +8,8 @@ async function cleanupQueue(guildId) {
     if (!serverQueue) return ;
     if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
 
-    clearInterval(serverQueue.time.interval);
-    serverQueue.ffmpegProcess.kill('SIGKILL');
+    if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
+    if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
     musicQueue.delete(guildId);
     updateActivity();
     updatePlayingGuild();

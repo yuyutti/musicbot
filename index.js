@@ -9,7 +9,7 @@ const { removeData } = require('./SQL/removedata');
 const { lang, volume } = require('./SQL/lockup');
 
 const globalLanguage = require('./lang/commands/global');
-const { updateActivity, setClientInstant } = require('./src/activity');
+const { updateActivity, setClientInstant, startActivity } = require('./src/activity');
 const { updatePlayingGuild } = require('./src/playingGuild');
 const { cleanupQueue, cleanupButtons } = require('./src/cleanUp');
 const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log');
@@ -44,6 +44,8 @@ client.once('ready', async() => {
         const command = require(`./commands/${file}`);
 
         client.commands.set(command.data.name, command);
+        if (file === 'cleanup.js') continue;
+        
         commands.push(command.data);
         if (command.alias) {
             for (const alias of command.alias) {
@@ -68,7 +70,7 @@ client.once('ready', async() => {
     loggerChannel.send('Logged in as ' + client.user.tag);
 
     setClientInstant(client);
-    updateActivity();
+    startActivity();
     updatePlayingGuild();
     isReady = true;
 
@@ -217,7 +219,7 @@ client.on('guildDelete', guild => {
     loggerChannel.send(`${guild.name} から退出しました。`);
 });
 
-// 1分おきにアクティビティを更新
+// 30秒おきにアクティビティを更新
 setInterval(() => {
     updateActivity();
     updatePlayingGuild();
