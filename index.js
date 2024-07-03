@@ -45,7 +45,7 @@ client.once('ready', async() => {
 
         client.commands.set(command.data.name, command);
         if (file === 'cleanup.js') continue;
-        
+
         commands.push(command.data);
         if (command.alias) {
             for (const alias of command.alias) {
@@ -94,7 +94,7 @@ client.on('messageCreate', async message => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`**${message.guild.name}**で**!${commandName}**が実行されました`);
+        loggerChannel.send(`command: **${message.guild.name}**で**!${commandName}**が実行されました`);
         await command.execute(message, args, language);
     }
     catch (error) {
@@ -120,7 +120,7 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`**${interaction.guild.name}**で/**${interaction.commandName}**が実行されました`);
+        loggerChannel.send(`command: **${interaction.guild.name}**で/**${interaction.commandName}**が実行されました`);
         await command.execute(interaction, args, language);
     }
     catch (error) {
@@ -162,6 +162,7 @@ client.on('interactionCreate', async interaction => {
     await executeCommand('volume', interaction, args, language);
 
     async function executeCommand(commandName, interaction, args, language) {
+        loggerChannel.send(`button: **${interaction.guild.name}**で**${commandName}**ボタンが押されました`);
         const command = client.commands.get(commandName);
         if (command) await command.execute(interaction, args, language);
     }
@@ -209,14 +210,14 @@ client.on('guildCreate', guild => {
         setData(guild.id, 'ja');
     }
     updateActivity();
-    loggerChannel.send(`${guild.name} に参加しました。`);
+    loggerChannel.send(`info: ${guild.name} に参加しました。`);
 });
 
 client.on('guildDelete', guild => {
     cleanupButtons(guild.id);
     cleanupQueue(guild.id);
     removeData(guild.id);
-    loggerChannel.send(`${guild.name} から退出しました。`);
+    loggerChannel.send(`info: ${guild.name} から退出しました。`);
 });
 
 // 30秒おきにアクティビティを更新

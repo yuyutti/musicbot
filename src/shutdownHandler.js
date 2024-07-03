@@ -19,7 +19,7 @@ const loadQueueFromFile = async (client) => {
     }
     const data = fs.readFileSync(queueFilePath);
     const queueData = JSON.parse(data);
-    console.log('Loaded queue data from file:', queueData.slice(0, 20));
+    console.log('Loaded queue data from file: ', queueData.slice(0, 5));
 
     for (const [key, value] of queueData) {
         if (!value.guildId) {
@@ -64,7 +64,6 @@ const loadQueueFromFile = async (client) => {
             musicQueue.set(key, serverQueue);
             playSong(value.guildId, serverQueue.songs[0]);
             textChannel.send(language.reconnected[serverQueue.language]);
-            console.log(`Restored queue for guild ${key}`);
         } catch (error) {
             console.error(`Failed to restore queue for guild ${key}:`, error);
         }

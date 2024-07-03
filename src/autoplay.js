@@ -3,6 +3,7 @@ const { queue: musicQueue } = require('./musicQueue');
 const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function autoplay (guildId) {
+    const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
     try {
         const serverQueue = musicQueue.get(guildId);
@@ -18,6 +19,7 @@ async function autoplay (guildId) {
                 requestBy: '1113282204064297010'
             }
         );
+        loggerChannel.send(`autoplay: **${serverQueue.guildName}**に**${serverQueue.songs.slice(-1)[0].title}**を追加しました`);
         return true
     } catch (error) {
         console.log(error)
