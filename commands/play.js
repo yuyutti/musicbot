@@ -48,7 +48,14 @@ module.exports = {
             if (addedCount === 0) return;
 
             const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
+
+            if (!songs || !Array.isArray(songs)) {
+                errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。${stringType},${songString}`);
+                return interactionOrMessage.reply({ content: language.notArray[lang], ephemeral: true });
+            }
+
             serverQueue.songs.push(...songs);
+
             updateActivity() && updatePlayingGuild();
             
             await handleSongAddition(serverQueue, stringType, addedCount, interactionOrMessage, lang, name);
