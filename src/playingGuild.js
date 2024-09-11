@@ -26,7 +26,7 @@ function updatePlayingGuild() {
 
     queue.forEach((value, key) => {
 
-        if (!value.songs[0].title) {
+        if (!value.songs || value.songs.length === 0 || !value.songs[0]?.title) {
             hasValidServer = true;
             cleanupQueue(key);
         }
@@ -106,13 +106,13 @@ function updatePlayingGuild() {
 }
 
 async function cleanupQueue(guildId) {
-    const serverQueue = musicQueue.get(guildId);
+    const serverQueue = queue.get(guildId);
     if (!serverQueue) return ;
     if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
 
     if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
     if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
-    musicQueue.delete(guildId);
+    queue.delete(guildId);
     updateActivity();
     updatePlayingGuild();
 }
