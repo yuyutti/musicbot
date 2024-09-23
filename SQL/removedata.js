@@ -3,6 +3,9 @@ const { connection } = require('./connection');
 const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 async function removeData(guildId) {
+
+    if (isOfflineMode()) return;
+
     const errorChannel = getErrorChannel();
     const query = 'DELETE FROM guild_settings WHERE guild_id = ?';
     try {

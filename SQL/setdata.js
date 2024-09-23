@@ -1,8 +1,14 @@
-const { connection } = require('./connection');
+const { connection, isOfflineMode } = require('./connection');
 const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 async function setData(guildId, arg) {
     const errorChannel = getErrorChannel();
+
+        // オフラインモードの場合はデータベースの更新をスキップ
+        if (isOfflineMode()) {
+            errorChannel.send('Offline mode active. Skipping database update.');
+            return;
+        }
 
     let query = `INSERT INTO guild_settings (guild_id`;
     let updateClause = `ON DUPLICATE KEY UPDATE `;
