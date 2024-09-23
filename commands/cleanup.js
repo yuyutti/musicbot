@@ -16,6 +16,7 @@ module.exports = {
             ja: '再生リスト、システムをクリーンアップします',
         }
     },
+    alias: ['kick'],
     async execute(interactionOrMessage, args, lang) {
         if (!owner.includes(interactionOrMessage.author.id)) return
 
