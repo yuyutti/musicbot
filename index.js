@@ -42,26 +42,34 @@ client.once('ready', async() => {
 
     for (const file of commandFiles) {
         const command = require(`./commands/${file}`);
-
-        client.commands.set(command.data.name, command);
-        if (file === 'cleanup.js') continue;
-
-        commands.push(command.data);
+        
         if (command.alias) {
             for (const alias of command.alias) {
                 client.commands.set(alias, command);
+            }
+        }
+        client.commands.set(command.data.name, command);
+        
+        if (file === 'cleanup.js') continue;
+    
+        if (command.alias && Array.isArray(command.alias)) {
+            for (const alias of command.alias) {
                 commands.push({
                     ...command.data,
                     name: alias,
                     name_localizations: command.data.name_localizations ? 
-                    Object.fromEntries(Object.entries(command.data.name_localizations).map(([key, value]) => [key, alias])) : undefined,
+                        Object.fromEntries(Object.entries(command.data.name_localizations).map(([key, value]) => [key, alias])) : undefined,
                 });
             }
         }
+    
+        commands.push(command.data);
     }
 
     // コマンド登録 テストするときはここにguildIdを指定する
-    await client.application.commands.set(commands);
+    await client.application.commands.set(commands); // 本番環境
+    //await client.application.commands.set(commands, process.env.GUILD_ID); // テスト環境
+    //await client.application.commands.set([], process.env.GUILD_ID); // テスト環境コマンドの削除(グローバルコマンドで定義済みのため)
     await fetchChannel(client);
     loggerChannel = getLoggerChannel();
     errorChannel = getErrorChannel();
