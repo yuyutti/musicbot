@@ -3,7 +3,7 @@ const { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder }
 const fs = require('fs');
 const path = require('path');
 
-const { createTable } = require('./SQL/connection');
+const { createTable, isOfflineMode } = require('./SQL/connection');
 const { setData } = require('./SQL/setdata');
 const { removeData } = require('./SQL/removedata');
 const { lang, volume } = require('./SQL/lockup');
@@ -68,6 +68,7 @@ client.once('ready', async() => {
 
     console.log(`Logged in as ${client.user.tag}`);
     loggerChannel.send('Logged in as ' + client.user.tag);
+    if (isOfflineMode()) errorChannel.send('login is offline mode');
 
     setClientInstant(client);
     startActivity();

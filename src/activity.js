@@ -1,4 +1,6 @@
-const { queue } = require('./musicQueue')
+const { queue } = require('./musicQueue');
+const { isOfflineMode } = require('../SQL/connection');
+
 
 let clientInstant = null
 
@@ -17,6 +19,9 @@ function startActivity() {
 async function updateActivity() {
     const serverCount = clientInstant.guilds.cache.size;
     const voiceCount = queue.size;
+
+    if (isOfflineMode()) return clientInstant.user.setActivity(`!help | Currently, the database is inaccessible, so all settings are in their default states | ${voiceCount}VC ${serverCount} Servers`);
+
     return clientInstant.user.setActivity(`!help | ${voiceCount}VC ${serverCount} Servers`);
 }
 

@@ -12,6 +12,8 @@ const connection = mysql.createPool({
     queueLimit: 0
 });
 
+let offlineMode = false;
+
 async function createTable() {
     try {
         const createTableQuery = `
@@ -23,12 +25,16 @@ async function createTable() {
             )
         `;
         await connection.execute(createTableQuery);
-        console.log('Database connection');
+        console.log('Database connection successful');
     }
     catch (error) {
-        console.error('Database connection failed:', error);
-        throw error;
+        offlineMode = true;
+        console.log('Switching to offline mode.');
     }
 }
 
-module.exports = { createTable, connection };
+function isOfflineMode() {
+    return offlineMode;
+}
+
+module.exports = { createTable, connection, isOfflineMode };
