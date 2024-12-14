@@ -14,14 +14,14 @@ module.exports = {
         options: [
             {
                 name: 'remove',
-                description: 'The position of the song to remove',
+                description: 'The position of the song to remove (number or "all")',
                 name_localizations: {
                     ja: 'remove',
                 },
                 description_localizations: {
-                    ja: '削除する曲の番号を指定',
+                    ja: '削除する曲の番号または "all" を指定',
                 },
-                type: 4,
+                type: 3,
                 required: true,
             }
         ]
@@ -35,15 +35,15 @@ module.exports = {
     
         // コマンドがスラッシュコマンドから実行されたかどうかをチェック
         if (interactionOrMessage.isCommand?.()) {
-            const trackInput = interactionOrMessage.options.get('track_number');
-            if (trackInput && trackInput.value.toLowerCase() === 'all') {
+            const trackInput = interactionOrMessage.options.get('remove').value;
+            if (typeof trackInput === 'string' && trackInput.toLowerCase() === 'all') {
                 if (serverQueue.songs.length === 1) {
                     return interactionOrMessage.reply(language.onlyOne[lang]);
                 }
                 serverQueue.songs.splice(1);
                 return interactionOrMessage.reply(language.allRemoved[lang]);
             }
-            trackNumber = parseInt(trackInput.value, 10);
+            trackNumber = parseInt(trackInput, 10);
         } else {
             // プレフィックスコマンドから実行された場合
             if (!args.length) return interactionOrMessage.reply(language.invalidNumber[lang]);
@@ -57,12 +57,17 @@ module.exports = {
             trackNumber = parseInt(args[0], 10);
         }
 
-        trackNumber + 1;
+        trackNumber = trackNumber - 1;
+        console.log(trackNumber);
     
         if (!isNaN(trackNumber) && trackNumber > 0 && trackNumber < serverQueue.songs.length) {
             const removedSong = serverQueue.songs.splice(trackNumber, 1)[0];
             return interactionOrMessage.reply(language.removedSong[lang](removedSong.title));
-        } else {
+        } 
+        else if (trackNumber === 0) {
+            return interactionOrMessage.reply(language.cannotRemoveCurrentSong[lang]);
+        }
+        else {
             return interactionOrMessage.reply(language.invalidNumber[lang]);
         }
     }

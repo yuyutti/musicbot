@@ -25,6 +25,10 @@ const lang = {
     removedSong: {
         ja: (title) => `**${title}** がキューから削除されました`,
         en: (title) => `**${title}** has been removed from the queue`
+    },
+    cannotRemoveCurrentSong: {
+        ja: '現在再生中の曲は削除できません',
+        en: 'The currently playing song cannot be removed'
     }
 }
 
