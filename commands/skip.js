@@ -60,6 +60,9 @@ module.exports = {
             }
             return interactionOrMessage.reply(language.queueEmpty[lang]);
         }
+
+        // 1の場合はそのまま1異常の場合は-1 (キューナンバーと合わすため)
+        skipCount = skipCount === 1 ? 1 : skipCount - 1;
     
         // キューに十分な曲がない場合の処理
         if (skipCount >= serverQueue.songs.length) {

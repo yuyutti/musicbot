@@ -34,7 +34,6 @@ module.exports = {
         const collector = interactionOrMessage.channel.createMessageComponentCollector({ time: 60000 });
 
         collector.on('collect', async (interaction) => {
-            await interaction.deferUpdate();
             if (interaction.customId === 'prev') {
                 currentPage = Math.max(0, currentPage - 1);
             }
@@ -44,6 +43,7 @@ module.exports = {
             const embeds = createQueueEmbed(serverQueue, currentPage, maxPages, lang);
             const components = [createPaginationRow(currentPage, maxPages, lang)];
             await sentMessage.edit({ embeds: embeds, components: components });
+            await interaction.deferUpdate();
         });
 
         collector.on('end', async () => {
@@ -54,6 +54,7 @@ module.exports = {
                 return ActionRowBuilder.from({ components: disabledButton });
             });
             await sentMessage.edit({ components: disabledComponents });
+            await interaction.deferUpdate();
         });
     },
 };
