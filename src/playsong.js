@@ -154,7 +154,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
 
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
-    .audioBitrate('128k')
+    .audioBitrate('96k')
     .audioFrequency(48000)
     .noVideo()
     .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
@@ -165,6 +165,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     .format('opus')
     .on('error', (error) => {
         if (error.message.includes('SIGKILL')) return;
+        if (error.message.includes('Output stream error: Premature close')) return;
         console.error('FFmpeg error:', error);
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
