@@ -1,0 +1,322 @@
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
+const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus } = require('@discordjs/voice');
+const play = require('play-dl');
+const { volume, lang } = require('../SQL/lockup');
+const language = require('../lang/src/playsong');
+
+const { queue: musicQueue } = require('./musicQueue');
+const { cleanupQueue, cleanupButtons } = require('./cleanUp');
+const { updatePlayingGuild } = require('./playingGuild');
+const { updateActivity } = require('./activity');
+const { joinVC } = require('./vc');
+const { getLoggerChannel, getErrorChannel } = require('./log');
+
+async function playIntro(guildId, song) {
+    const serverQueue = musicQueue.get(guildId);
+    if (!song || !serverQueue) return await cleanupQueue(guildId);
+
+    const loggerChannel = getLoggerChannel();
+    const errorChannel = getErrorChannel();
+
+    const voiceStatusFlags = {
+        Connecting: false,
+        Ready: false,
+        Destroyed: false,
+        Disconnected: false
+    };
+
+    await joinVC(guildId);
+    serverQueue.connection.removeAllListeners();
+    serverQueue.audioPlayer.removeAllListeners();
+    serverQueue.commandStatus.removeAllListeners();
+    cleanupButtons(guildId);
+
+    updateActivity();
+    updatePlayingGuild();
+
+    handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId);
+    handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
+
+    try {
+        const [, stream] = await Promise.all([
+            sendPlayingMessage(serverQueue),
+            play.stream(song.url, { quality: 0, discordPlayerCompatibility: true, seek: song.startDuration })
+        ]);
+        await prepareAndPlayStream(serverQueue, stream, song, guildId);
+    } catch (error) {
+        console.error('Error playing song:', error);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
+        cleanupQueue(guildId);
+    }
+}
+
+async function prepareAndPlayStream(serverQueue, stream, song, guildId) {
+    const targetBufferSizeBytes = isNaN(stream.per_sec_bytes * 5) ? 75 * 1024 : stream.per_sec_bytes * 5;
+    let accumulatedSizeBytes = 0;
+
+    const resource = createAudioResource(stream.stream, {
+        inputType: stream.type,
+        inlineVolume: true
+    });
+    resource.volume.setVolume(volumePurse(serverQueue.volume));
+
+    await new Promise((resolve, reject) => {
+        stream.stream.on('data', (chunk) => {
+            accumulatedSizeBytes += chunk.length;
+            if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
+        });
+        stream.stream.on('error', reject);
+    });
+
+    setupCommandStatusListeners(serverQueue, guildId, resource);
+    serverQueue.audioPlayer.play(resource);
+    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+
+    setTimeout(() => {
+        serverQueue.audioPlayer.pause();
+        waitForAnswers(serverQueue);
+    }, (song.endDuration - song.startDuration) * 1000);
+}
+
+function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId) {
+    serverQueue.connection.on('stateChange', async (oldState, newState) => {
+        const guildName = serverQueue.voiceChannel.guild.name;
+        switch (newState.status) {
+            case VoiceConnectionStatus.Connecting:
+                if (!voiceStatusFlags.Connecting) {
+                    voiceStatusFlags.Connecting = true;
+                    loggerChannel.send(`**${guildName}**のVCに接続しました`);
+                }
+                break;
+            case VoiceConnectionStatus.Ready:
+                voiceStatusFlags.Ready = true;
+                break;
+            case VoiceConnectionStatus.Destroyed:
+                if (!voiceStatusFlags.Destroyed) {
+                    voiceStatusFlags.Destroyed = true;
+                    loggerChannel.send(`**${guildName}**のVCから切断しました`);
+                    cleanupQueue(guildId);
+                }
+                break;
+            case VoiceConnectionStatus.Disconnected:
+                if (!voiceStatusFlags.Disconnected) {
+                    voiceStatusFlags.Disconnected = true;
+                    cleanupQueue(guildId);
+                }
+                break;
+        }
+    });
+}
+
+async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
+    serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
+        if (newState.status === AudioPlayerStatus.Idle) {
+            serverQueue.songs.shift();
+            if (serverQueue.songs.length > 0) {
+                playIntro(guildId, serverQueue.songs[0]);
+            } else {
+                cleanupQueue(guildId);
+            }
+        } else if (newState.status === AudioPlayerStatus.Playing) {
+            await handlePlayingState(serverQueue, loggerChannel, guildId, song);
+        }
+    });
+
+    serverQueue.audioPlayer.on('error', (error) => {
+        console.error('Audio player error:', error);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でaudioPlayerエラーが発生しました\n\`\`\`${error}\`\`\``);
+        cleanupQueue(guildId);
+    });
+}
+
+async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
+    loggerChannel.send(`**${serverQueue.voiceChannel.guild.name}**で**${song.title}**再生を開始しました`);
+    const buttons = createControlButtons();
+    await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+    // playQuestionSound(serverQueue);
+}
+
+async function waitForAnswers(serverQueue) {
+    const answerQueue = [];
+
+    const filter = response => response.content.toLowerCase() === 'はい' && response.member.voice.channel.id === serverQueue.voiceChannel.id;
+    const collector = serverQueue.textChannel.createMessageCollector({ filter, time: 30000 });
+
+    collector.on('collect', async message => {
+        answerQueue.push(message.author.id);
+        if (answerQueue.length === 1) {
+            processAnswerQueue(serverQueue, answerQueue);
+        }
+    });
+
+    collector.on('end', async collected => {
+        if (answerQueue.length === 0) {
+            serverQueue.textChannel.send('回答者がいませんでした。');
+            await serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(serverQueue.guildId, 'answer', false)] });
+            serverQueue.audioPlayer.unpause();
+        }
+    });
+}
+
+async function processAnswerQueue(serverQueue, answerQueue) {
+    if (answerQueue.length === 0) {
+        if (serverQueue.songs.length > 0) {
+            playIntro(serverQueue.guildId, serverQueue.songs[0]);
+        } else {
+            cleanupQueue(serverQueue.guildId);
+        }
+        return;
+    }
+
+    const userId = answerQueue.shift();
+    serverQueue.textChannel.send(`<@${userId}> が回答権を得ました。回答をお願いします！`);
+
+    const filter = response => response.author.id === userId;
+    const collector = serverQueue.textChannel.createMessageCollector({ filter, max: 1, time: serverQueue.game.responseTime * 1000 });
+
+    collector.on('collect', async response => {
+        const answer = response.content.replace(/\s+/g, '').toLowerCase();
+        const correctAnswer = serverQueue.songs[0].title.replace(/\s+/g, '').toLowerCase();
+        const similarity = calculateSimilarity(answer, correctAnswer);
+
+        if ((serverQueue.game.hardMode && similarity === 1) || (!serverQueue.game.hardMode && similarity >= 0.7)) {
+            serverQueue.textChannel.send(`<@${userId}> 正解です！`);
+            await serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(serverQueue.guildId, 'answer', true)] });
+            if (!serverQueue.game.points[userId]) serverQueue.game.points[userId] = 0;
+            serverQueue.game.points[userId]++;
+            await playCorrectSound(serverQueue);
+            serverQueue.songs.shift();
+        } else {
+            serverQueue.textChannel.send(`<@${userId}> 不正解です。`);
+            await playWrongSound(serverQueue);
+        }
+        processAnswerQueue(serverQueue, answerQueue);
+    });
+
+    collector.on('end', async collected => {
+        if (collected.size === 0) {
+            serverQueue.textChannel.send(`<@${userId}> 回答がありませんでした。`);
+            processAnswerQueue(serverQueue, answerQueue);
+        }
+    });
+}
+
+function calculateSimilarity(answer, correctAnswer) {
+    let matches = 0;
+    const len = Math.min(answer.length, correctAnswer.length);
+
+    for (let i = 0; i < len; i++) {
+        if (answer[i] === correctAnswer[i]) matches++;
+    }
+
+    return matches / correctAnswer.length;
+}
+
+async function sendPlayingMessage(serverQueue) {
+    const embed = new EmbedBuilder()
+        .setColor('#0099ff')
+        .setTitle('イントロクイズ')
+        .setDescription('イントロの再生準備中です...')
+        .setTimestamp()
+        .setFooter({ text: 'DJ-Music', iconURL: 'https://cdn.discordapp.com/app-icons/1113282204064297010/9934a13736d8e8e012d6cb71a5f2107a.png?size=256' });
+
+    serverQueue.playingMessage = await serverQueue.textChannel.send({ embeds: [embed] });
+}
+
+function nowPlayingEmbed(guildId, phase = 'answering', answerResult = null) {
+    const serverQueue = musicQueue.get(guildId);
+
+    const currentSong = serverQueue.songs[0];
+    const lan = serverQueue.language;
+
+    if (phase === 'answering') {
+        return new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('イントロクイズ - 回答中')
+            .setDescription('曲名を当ててください！回答権を得るには「はい」と入力してください。')
+            .addFields(
+                { name: 'ヒント', value: 'ヒントボタンを使用して、ヒントを得ることができます。', inline: true },
+                { name: 'ギブアップ', value: 'ギブアップボタンを使用して、現在の曲をスキップできます。', inline: true }
+            )
+            .setTimestamp()
+            .setFooter({ text: 'DJ-Music', iconURL: 'https://cdn.discordapp.com/app-icons/1113282204064297010/9934a13736d8e8e012d6cb71a5f2107a.png?size=256' });
+    } else if (phase === 'answer') {
+        return new EmbedBuilder()
+            .setColor('#0099ff')
+            .setTitle('イントロクイズ - 回答結果')
+            .setDescription(answerResult ? '正解です！' : '時間切れです。')
+            .addFields(
+                { name: '曲名', value: currentSong.title, inline: true }
+            )
+            .setTimestamp()
+            .setFooter({ text: 'DJ-Music', iconURL: 'https://cdn.discordapp.com/app-icons/1113282204064297010/9934a13736d8e8e012d6cb71a5f2107a.png?size=256' });
+    }
+}
+
+function setupCommandStatusListeners(serverQueue, guildId, resource) {
+    serverQueue.commandStatus.on('volume', async () => {
+        const getVolume = await volume(guildId);
+        resource.volume.setVolume(volumePurse(getVolume));
+        serverQueue.volume = getVolume;
+        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+    });
+
+    serverQueue.commandStatus.on('lang', async () => {
+        const getLang = await lang(guildId);
+        serverQueue.language = getLang;
+        serverQueue.playingMessage.edit({ embeds: [nowPlayingEmbed(guildId)] });
+    });
+}
+
+function createControlButtons() {
+    const buttons1 = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder().setCustomId('giveup').setLabel('Give Up').setStyle(ButtonStyle.Danger),
+            new ButtonBuilder().setCustomId('hint').setLabel('Hint').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('replay').setLabel('Replay').setStyle(ButtonStyle.Success),
+        );
+
+    const buttons2 = new ActionRowBuilder()
+        .addComponents(
+            new ButtonBuilder().setCustomId('volumeSmall').setEmoji('1206535036979912724').setStyle(ButtonStyle.Success),
+            new ButtonBuilder().setCustomId('volumeDefault').setEmoji('1206535038397587556').setStyle(ButtonStyle.Primary),
+            new ButtonBuilder().setCustomId('volumeBig').setEmoji('1206535035398787122').setStyle(ButtonStyle.Success)
+        );
+
+    return [buttons1, buttons2];
+}
+
+function volumePurse(volume) {
+    const maxVolume = 0.5;
+    const normalizedPercentage = volume / 100;
+    return normalizedPercentage * maxVolume;
+}
+
+async function playQuestionSound(serverQueue) { // 問題出題時の効果音
+    const resource = createAudioResource('../sounds/question.mp3', {
+        inlineVolume: true
+    });
+    resource.volume.setVolume(volumePurse(serverQueue.volume));
+    serverQueue.audioPlayer.play(resource);
+    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+}
+
+async function playCorrectSound(serverQueue) { // 正解時の効果音
+    const resource = createAudioResource('../sound/correct.mp3', {
+        inlineVolume: true
+    });
+    resource.volume.setVolume(volumePurse(serverQueue.volume));
+    serverQueue.audioPlayer.play(resource);
+    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+}
+
+async function playWrongSound(serverQueue) { // 不正解時の効果音
+    const resource = createAudioResource('../sounds/wrong.mp3', {
+        inlineVolume: true
+    });
+    resource.volume.setVolume(volumePurse(serverQueue.volume));
+    serverQueue.audioPlayer.play(resource);
+    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+}
+
+module.exports = { playIntro };
