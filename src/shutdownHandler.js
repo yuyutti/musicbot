@@ -10,16 +10,77 @@ const { playSong } = require('./playsong');
 const queueFilePath = path.join(__dirname, '..','serverQueue.json');
 const language = require('../lang/src/shutdownHandler');
 
-const { shutdownActivity } = require('./activity');
+const { getClientInstant, shutdownActivity } = require('./activity');
+
+
+// const loadQueueFromFile = async (client) => {
+//     if (!fs.existsSync(queueFilePath)) {
+//         console.log('Queue file does not exist.');
+//         return;
+//     }
+//     const data = fs.readFileSync(queueFilePath);
+//     const queueData = JSON.parse(data);
+//     console.log('Loaded queue data from file: ', queueData.slice(0, 5));
+
+//     for (const [key, value] of queueData) {
+//         if (!value.guildId) {
+//             console.error(`Invalid guildId for key ${key}`);
+//             continue;
+//         }
+
+//         try {
+//             const guild = await client.guilds.cache.get(value.guildId);
+//             const voiceChannel = await guild.channels.cache.get(value.voiceChannel.id);
+//             const textChannel = await guild.channels.cache.get(value.textChannel.id);
+//             const serverQueue = {
+//                 textChannel: textChannel,
+//                 playingMessage: null,
+//                 voiceChannel: voiceChannel,
+//                 connection: null,
+//                 guildName: value.guildName,
+//                 guildId: value.guildId,
+//                 language: await lang(value.guildId) || 'en',
+//                 removeWord: await removeWord(value.guildId) || false,
+//                 loop: value.loop,
+//                 autoPlay: value.autoPlay,
+//                 volume: await volume(value.guildId) || 10,
+//                 commandStatus: new commandStatus(),
+//                 songs: value.songs,
+//                 ffmpegProcess: null,
+//                 resource: null,
+//                 stream: null,
+//                 audioPlayer: createAudioPlayer({
+//                     behaviors: {
+//                         noSubscriber: NoSubscriberBehavior.Pause
+//                     }
+//                 }),
+//                 time: { 
+//                     start: value.time.start,
+//                     end: value.time.end, 
+//                     current: value.time.current, 
+//                     interval: null 
+//                 },
+//                 game: value.game
+//             };
+//             musicQueue.set(key, serverQueue);
+//             playSong(value.guildId, serverQueue.songs[0]);
+//             textChannel.send(language.reconnected[serverQueue.language]);
+//         } catch (error) {
+//             console.error(`Failed to restore queue for guild ${key}:`, error);
+//         }
+//     }
+// };
 
 const loadQueueFromFile = async (client) => {
-    if (!fs.existsSync(queueFilePath)) {
-        console.log('Queue file does not exist.');
+    const filePath = path.join(__dirname, `..`, `serverQueue_${process.env.SHARDS}.json`);
+    if (!fs.existsSync(filePath)) {
+        console.log(`Queue file for shard ${process.env.SHARDS} does not exist.`);
         return;
     }
-    const data = fs.readFileSync(queueFilePath);
+
+    const data = fs.readFileSync(filePath);
     const queueData = JSON.parse(data);
-    console.log('Loaded queue data from file: ', queueData.slice(0, 5));
+    console.log(`Loaded queue data for shard ${process.env.SHARDS}:`, queueData.slice(0, 5));
 
     for (const [key, value] of queueData) {
         if (!value.guildId) {
@@ -59,7 +120,7 @@ const loadQueueFromFile = async (client) => {
                     current: value.time.current, 
                     interval: null 
                 },
-                game: value.game
+                game: value.game,
             };
             musicQueue.set(key, serverQueue);
             playSong(value.guildId, serverQueue.songs[0]);
@@ -84,8 +145,26 @@ const getCircularReplacer = () => {
     };
 };
 
-const saveQueueToFile = async(queue) => {
-    console.log('Saving queue to file...');
+// const saveQueueToFile = async(queue) => {
+//     console.log('Saving queue to file...');
+//     await shutdownActivity();  // 非同期関数を待機
+
+//     const queueCopy = new Map(
+//         Array.from(queue.entries()).map(([key, value]) => {
+//             const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time, game } = value;
+//             return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
+//         })
+//     );
+
+//     fs.writeFileSync(queueFilePath, JSON.stringify(Array.from(queueCopy.entries()), getCircularReplacer(), 4));
+//     console.log('Queue saved successfully.');
+// };
+
+const saveQueueToFile = async (queue) => {
+    const client = getClientInstant();
+    const filePath = path.join(__dirname, `..`, `serverQueue_${process.env.SHARDS}.json`);
+    console.log(`Saving queue for shard ${process.env.SHARDS} to file...`);
+
     await shutdownActivity();  // 非同期関数を待機
 
     const queueCopy = new Map(
@@ -95,17 +174,27 @@ const saveQueueToFile = async(queue) => {
         })
     );
 
-    fs.writeFileSync(queueFilePath, JSON.stringify(Array.from(queueCopy.entries()), getCircularReplacer(), 4));
-    console.log('Queue saved successfully.');
+    fs.writeFileSync(filePath, JSON.stringify(Array.from(queueCopy.entries()), getCircularReplacer(), 4));
+    console.log(`Queue for shard ${process.env.SHARDS} saved successfully.`);
 };
 
 let shutdownInitiated = false;
 
+// const handleShutdown = async (signal) => {
+//     if (!shutdownInitiated) {
+//         shutdownInitiated = true;
+//         console.log(`${signal} received, shutting down...`);
+//         await saveQueueToFile(musicQueue);  // 非同期関数を待機
+//         process.exit();
+//     }
+// };
+
 const handleShutdown = async (signal) => {
     if (!shutdownInitiated) {
+        const client = getClientInstant();
         shutdownInitiated = true;
-        console.log(`${signal} received, shutting down...`);
-        await saveQueueToFile(musicQueue);  // 非同期関数を待機
+        console.log(`${signal} received, shutting down shard ${process.env.SHARDS}...`);
+        await saveQueueToFile(musicQueue);  // 自分のシャードのデータを保存
         process.exit();
     }
 };

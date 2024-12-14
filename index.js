@@ -70,21 +70,33 @@ client.once('ready', async() => {
     await client.application.commands.set(commands); // 本番環境
     //await client.application.commands.set(commands, process.env.GUILD_ID); // テスト環境
     //await client.application.commands.set([], process.env.GUILD_ID); // テスト環境コマンドの削除(グローバルコマンドで定義済みのため)
-    await fetchChannel(client);
-    loggerChannel = getLoggerChannel();
-    errorChannel = getErrorChannel();
 
-    console.log(`Logged in as ${client.user.tag}`);
-    loggerChannel.send('Logged in as ' + client.user.tag);
-    if (isOfflineMode()) errorChannel.send('login is offline mode');
+    console.log(`Logged in as ${client.user.tag} shard ${process.env.SHARDS}`);
 
     setClientInstant(client);
-    startActivity();
-    updatePlayingGuild();
+    
+    if (isOfflineMode()) errorChannel.send('login is offline mode');
     isReady = true;
 
     loadQueueFromFile(client);
 });
+
+client.AllShardIsReady = async function() {
+    client.isShardReady = true;
+    await fetchChannel(client);
+    loggerChannel = getLoggerChannel();
+    errorChannel = getErrorChannel();
+
+    loggerChannel.send(`Logged in as ${client.user.tag} shard ${process.env.SHARDS}`);
+
+    setClientInstant(client);
+    startActivity();
+    updatePlayingGuild();
+    
+    if (process.env.SHARDS === 0) {
+        require('./src/express');
+    }
+}
 
 // コマンド待ち受け //
 client.on('messageCreate', async message => {
@@ -230,14 +242,18 @@ client.on('guildDelete', guild => {
 });
 
 // 30秒おきにアクティビティを更新
-setInterval(() => {
-    updateActivity();
-    updatePlayingGuild();
-}, 30000);
+if (process.env.SHARDS === 0) {
+    // シャード0のみが定期更新を実行
+    setInterval(() => {
+        updateActivity();
+        updatePlayingGuild();
+        setClientInstant(client);
+    }, 30000);
+}
 
 process.on('uncaughtException', (err) => {
     console.error(err);
-    errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
+    //errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
 });
 
 client.login(process.env.DISCORD_TOKEN);
