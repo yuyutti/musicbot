@@ -20,6 +20,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         commandStatus: new commandStatus(),
         songs: [],
         ffmpegProcess: null,
+        Throttle: null,
         resource: null,
         stream: null,
         audioPlayer: createAudioPlayer({
@@ -33,6 +34,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
             current: 0,
             interval: null
         },
+        IdolTimeOut: null,
         game: null
     };
     queue.set(guildId, serverQueue);
