@@ -46,6 +46,7 @@ const loadQueueFromFile = async (client) => {
                 commandStatus: new commandStatus(),
                 songs: value.songs,
                 ffmpegProcess: null,
+                Throttle: null,
                 resource: null,
                 stream: null,
                 audioPlayer: createAudioPlayer({
@@ -59,6 +60,7 @@ const loadQueueFromFile = async (client) => {
                     current: value.time.current, 
                     interval: null 
                 },
+                IdolTimeOut: null,
                 game: value.game
             };
             musicQueue.set(key, serverQueue);
@@ -89,7 +91,9 @@ const saveQueueToFile = async(queue) => {
     await shutdownActivity();  // 非同期関数を待機
 
     const queueCopy = new Map(
-        Array.from(queue.entries()).map(([key, value]) => {
+        Array.from(queue.entries())
+        .filter(([key, value]) => !value.IdolTimeOut)
+        .map(([key, value]) => {
             const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time, game } = value;
             return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
         })

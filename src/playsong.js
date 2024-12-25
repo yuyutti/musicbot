@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
+const { Throttle } = require('stream-throttle');
 const play = require('play-dl'); // 有志の方が作成したテスト版を使用
 
 const ffmpeg = require('fluent-ffmpeg');
@@ -16,7 +17,18 @@ const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
-    if (!song || !serverQueue) return await cleanupQueue(guildId);
+
+    if (!serverQueue || !song) {
+        if (!serverQueue?.IdolTimeOut) {
+            return await cleanupQueue(guildId);
+        }
+        return;
+    }
+
+    if (serverQueue.IdolTimeOut) {
+        clearTimeout(serverQueue.IdolTimeOut);
+        serverQueue.IdolTimeOut = null;
+    }
 
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
@@ -88,7 +100,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
             handleIdleState(serverQueue, guildId);
-            clearInterval(serverQueue.time.interval);
+            // clearInterval(serverQueue.time.interval);
             serverQueue.time.interval = null;
             serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
         }
@@ -126,7 +138,9 @@ function handleIdleState(serverQueue, guildId) {
         handleAutoPlay(serverQueue, guildId);
     } else {
         serverQueue.songs.shift();
-        serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
+        serverQueue.IdolTimeOut = setTimeout(() => {
+            cleanupQueue(guildId);
+        }, 300000);
     }
 }
 
@@ -152,6 +166,10 @@ async function sendPlayingMessage(serverQueue) {
 async function prepareAndPlayStream(serverQueue, guildId) {
     const seekPosition = serverQueue.time.current;
 
+    if (serverQueue.ffmpegProcess) {
+        serverQueue.ffmpegProcess.kill('SIGKILL');
+    }
+
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
     .audioBitrate('96k')
@@ -170,7 +188,10 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const ffmpegStream = serverQueue.ffmpegProcess.pipe();
+    const throttleRate = 50 * 1024; // データ取得時のスロットルレート 500KB/s
+    serverQueue.Throttle = new Throttle({ rate: throttleRate });
+
+    const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
 
     serverQueue.resource = createAudioResource(ffmpegStream, {
         inputType: StreamType.WebmOpus,
@@ -181,9 +202,26 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     const targetBufferSizeBytes = isNaN(serverQueue.stream.per_sec_bytes * 10) ? 75 * 1024 : serverQueue.stream.per_sec_bytes * 10;
     let accumulatedSizeBytes = 0;
 
+    const startTime = Date.now(); // 計測開始時間
+    let lastLoggedTime = startTime; // ログ出力の初期時間
+
     await new Promise((resolve, reject) => {
         ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
+
+            // 1秒ごとにkbpsと読み込んだMBをログ
+            const currentTime = Date.now();
+
+            if (currentTime - lastLoggedTime >= 1000) {
+                const elapsedSeconds = (currentTime - startTime) / 1000;
+                const kbps = (accumulatedSizeBytes * 8) / elapsedSeconds / 1024; // kbpsの計算
+                const readMB = accumulatedSizeBytes / (1024 * 1024); // MBの計算
+
+                console.log(`Current Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readMB.toFixed(2)} MB`);
+
+                lastLoggedTime = currentTime; // ログ出力の時間を更新
+            }
+
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
         ffmpegStream.on('error', reject);
