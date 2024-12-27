@@ -6,6 +6,7 @@ const { updatePlayingGuild } = require('./playingGuild');
 async function cleanupQueue(guildId) {
     const serverQueue = musicQueue.get(guildId);
     if (!serverQueue) return ;
+    if (serverQueue.audioPlayer) serverQueue.audioPlayer.stop(true);
     if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
 
     if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
