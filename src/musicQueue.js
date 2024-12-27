@@ -25,7 +25,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         stream: null,
         audioPlayer: createAudioPlayer({
             behaviors: {
-                noSubscriber: NoSubscriberBehavior.Stop
+                noSubscriber: NoSubscriberBehavior.Pause
             }
         }),
         time: {
@@ -34,7 +34,6 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
             current: 0,
             interval: null
         },
-        IdolTimeOut: null,
         game: null
     };
     queue.set(guildId, serverQueue);

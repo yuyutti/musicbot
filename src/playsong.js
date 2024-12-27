@@ -17,18 +17,7 @@ const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
-
-    if (!serverQueue || !song) {
-        if (!serverQueue?.IdolTimeOut) {
-            return await cleanupQueue(guildId);
-        }
-        return;
-    }
-
-    if (serverQueue.IdolTimeOut) {
-        clearTimeout(serverQueue.IdolTimeOut);
-        serverQueue.IdolTimeOut = null;
-    }
+    if (!song || !serverQueue) return await cleanupQueue(guildId);
 
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
@@ -100,7 +89,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
             handleIdleState(serverQueue, guildId);
-            // clearInterval(serverQueue.time.interval);
+            clearInterval(serverQueue.time.interval);
             serverQueue.time.interval = null;
             serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
         }
@@ -138,9 +127,7 @@ function handleIdleState(serverQueue, guildId) {
         handleAutoPlay(serverQueue, guildId);
     } else {
         serverQueue.songs.shift();
-        serverQueue.IdolTimeOut = setTimeout(() => {
-            cleanupQueue(guildId);
-        }, 300000);
+        serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
     }
 }
 
