@@ -176,7 +176,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 128 * 1024 / 8; // 128kbps
+    const throttleRate = 140 * 1024 / 8; // 140kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
 
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
