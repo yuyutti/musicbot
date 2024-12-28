@@ -43,6 +43,7 @@ const loadQueueFromFile = async (client) => {
                 loop: value.loop,
                 autoPlay: value.autoPlay,
                 volume: await volume(value.guildId) || 10,
+                IdolStop: value.IdolStop,
                 commandStatus: new commandStatus(),
                 songs: value.songs,
                 ffmpegProcess: null,
@@ -92,8 +93,8 @@ const saveQueueToFile = async(queue) => {
     const queueCopy = new Map(
         Array.from(queue.entries())
         .map(([key, value]) => {
-            const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time, game } = value;
-            return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
+            const { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, IdolStop, songs, time, game } = value;
+            return [key, { textChannel, voiceChannel, guildName, guildId, loop, autoPlay, IdolStop, songs, time: { start: time.start, end: time.end, current: time.current }, game }];
         })
     );
 

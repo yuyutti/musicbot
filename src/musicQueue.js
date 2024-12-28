@@ -17,6 +17,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         loop: false,
         autoPlay: false,
         volume: await volume(guildId) || 10,
+        IdolStop: null,
         commandStatus: new commandStatus(),
         songs: [],
         ffmpegProcess: null,

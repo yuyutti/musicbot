@@ -88,6 +88,7 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
 async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            if (serverQueue.IdolStop) return;
             handleIdleState(serverQueue, guildId);
             clearInterval(serverQueue.time.interval);
             serverQueue.time.interval = null;
@@ -159,7 +160,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
 
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
-    .audioBitrate('96k')
+    .audioBitrate('128k')
     .audioFrequency(48000)
     .noVideo()
     .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
@@ -175,7 +176,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 50 * 1024; // データ取得時のスロットルレート 500KB/s
+    const throttleRate = 128 * 1024 / 8; // 128kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
 
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
@@ -193,24 +194,42 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     let lastLoggedTime = startTime; // ログ出力の初期時間
 
     await new Promise((resolve, reject) => {
+        let lastLoggedBytes = 0;
+    
         ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
-
-            // 1秒ごとにkbpsと読み込んだMBをログ
+    
+            // 現在時刻を取得
             const currentTime = Date.now();
-
+    
+            // 1秒ごとにkbpsとその区間で読み込んだMBをログ
             if (currentTime - lastLoggedTime >= 1000) {
-                const elapsedSeconds = (currentTime - startTime) / 1000;
-                const kbps = (accumulatedSizeBytes * 8) / elapsedSeconds / 1024; // kbpsの計算
-                const readMB = accumulatedSizeBytes / (1024 * 1024); // MBの計算
-
-                console.log(`Current Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readMB.toFixed(2)} MB`);
-
+    
+                // 1秒間で受信したバイト量
+                const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
+                lastLoggedBytes = accumulatedSizeBytes;
+    
+                // kbpsとMBの計算
+                const kbps = (bytesSinceLastLog * 8) / 1024; // 1秒間のkbps
+                const readMB = bytesSinceLastLog / (1024 * 1024); // 1秒間のMB
+    
+                process.dashboardData.traffic.push({
+                    timestamp: currentTime,
+                    guildId: guildId,
+                    kbps: kbps.toFixed(2),
+                    mb: readMB.toFixed(2),
+                });
+    
+                console.log(
+                    `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readMB.toFixed(2)} MB`
+                );
+    
                 lastLoggedTime = currentTime; // ログ出力の時間を更新
             }
-
+    
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
+    
         ffmpegStream.on('error', reject);
     });
 
