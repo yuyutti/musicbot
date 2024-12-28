@@ -5,6 +5,14 @@ const { updateActivity } = require('./activity');
 
 require('../src/express');
 
+process.dashboardData = {
+    totalGuilds: 0,
+    totalUsers: 0,
+    totalConnections: 0,
+    totalListener: 0,
+    traffic: []
+}
+
 function updatePlayingGuild() {
     const statusChannel = getStatusChannel();
     const statusMessage = getStatusMessage();
@@ -33,11 +41,9 @@ function updatePlayingGuild() {
 
         if (value.voiceChannel && value.voiceChannel.members) {
             listener += value.voiceChannel.members.size -1;
-            membersInfo = value.voiceChannel.members.map(member => ({
-                name: member.user.username,
-                id: member.user.id
-            }));
         }
+
+        process.dashboardData.totalListener = listener;
 
     });
 
@@ -51,18 +57,15 @@ function updatePlayingGuild() {
         embed.setDescription(`アクティブなボイスチャンネル: **${mapSize}VC** | 総リスナー: **${listener}人**`);
         embed.setColor('#00ffff');
         queue.forEach((value, key) => {
-            // embed.addFields(
-            //     {name: '\u200B', value: '---------------------------------'},
-            //     {name: value.guildName, value: value.guildId, inline: true },
-            //     {name: 'listener', value: (value.voiceChannel.members.size - 1).toString(), inline: true },
-            //     {name: 'Now Playing', value: `[${value.songs[0].title}](${value.songs[0].url})`},
-            //     {name: 'Next Playing', value: value.songs[1] ? `[${value.songs[1].title}](${value.songs[1].url})` : 'なし'},
-            //     {name: 'Queue Length', value: value.songs.length.toString(), inline: true},
-            //     {name: `Play Time`, value: `${getTotalDuration(value)}`, inline: true},
-            //     {name: `Request By`, value: `<@${value.songs[0].requestBy}>`, inline: true},
-            //     {name: `status`, value: `Volume: \`${value.volume}%\` | Loop: \`${value.loop ? 'ON' : 'Off'}\` | AutoPlay: \`${value.autoPlay ? 'ON' : 'Off' }\` | removeWord : \`${value.removeWord ? 'ON' : 'Off' }\` | lang : \`${value.language}\``},
-            // );
-            const requestByUser = membersInfo.find(member => member.id === value.songs[0].requestBy);
+
+            const guildMembersInfo = value.voiceChannel && value.voiceChannel.members
+            ? Array.from(value.voiceChannel.members.values()).map(member => ({
+                name: member.user.username,
+                id: member.user.id,
+            }))
+            : [];
+
+            const requestByUser = guildMembersInfo.find(member => member.id === value.songs[0].requestBy);
             const guildData = {
                 guildName: value.guildName,
                 guildId: value.guildId,
@@ -77,7 +80,7 @@ function updatePlayingGuild() {
                     end: value.time.end,
                     current: value.time.current,
                 },
-                member: membersInfo,
+                member: guildMembersInfo,
                 requestBy: requestByUser ? { name: requestByUser.name, id: requestByUser.id } : { name: 'Unknown', id: 'Unknown' },
                 status: {
                     volume: `${value.volume}%`,

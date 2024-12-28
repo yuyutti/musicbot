@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ダッシュボード</title>
+</head>
+<body>
+    <div id="dashboard">
+        <p>Total Guilds: <span id="totalGuilds">0</span></p>
+        <p>Total Users: <span id="totalUsers">0</span></p>
+        <p>Total Connections: <span id="totalConnections">0</span></p>
+        <p>Total Listeners: <span id="totalListener">0</span></p>
+    </div>
+    <div>
+        <h3>Total Traffic</h3>
+        <p>Total speed: <span id="totalspeed">0</span></p>
+        <p>Total amount: <span id="totalamount">0</span></p>
+    </div>
+
+    <div>
+        <h3>Traffic Graph</h3>
+        <canvas id="trafficChart" width="800" height="400"></canvas>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        // グラフの初期化
+        const ctx = document.getElementById('trafficChart').getContext('2d');
+        const trafficChart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [], // 時間を格納
+                datasets: [
+                    {
+                        label: 'Traffic Speed (kbps)',
+                        data: [], // 通信速度を格納
+                        borderColor: 'rgba(54, 162, 235, 1)',
+                        backgroundColor: 'rgba(54, 162, 235, 0.2)',
+                        borderWidth: 2,
+                        fill: true
+                    },
+                    {
+                        label: 'Data Received (KB)',
+                        data: [], // データ量を格納
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        backgroundColor: 'rgba(255, 99, 132, 0.2)',
+                        borderWidth: 2,
+                        fill: true
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                scales: {
+                    x: {
+                        title: {
+                            display: true,
+                            text: 'Time'
+                        }
+                    },
+                    y: {
+                        title: {
+                            display: true,
+                            text: 'Values'
+                        },
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+
+        async function updateDashboard() {
+            try {
+                const response = await fetch('/dashboard-data');
+                const data = await response.json();
+    
+                // 全体のデータを更新
+                document.getElementById('totalGuilds').textContent = data.totalGuilds;
+                document.getElementById('totalUsers').textContent = data.totalUsers;
+                document.getElementById('totalConnections').textContent = data.totalConnections;
+                document.getElementById('totalListener').textContent = data.totalListener;
+                
+                // 全体のトラフィックデータから最新2秒以内のデータを取得
+                const recentData = data.traffic.filter(item => Date.now() - new Date(item.timestamp) < 5000);
+                console.log(recentData);
+                if (recentData.length > 0) {
+                    // ギルドIDごとにデータを分類
+                    const guildData = recentData.reduce((acc, item) => {
+                        if (!acc[item.guildId]) {
+                            acc[item.guildId] = [];
+                        }
+                        acc[item.guildId].push(item);
+                        return acc;
+                    }, {});
+
+                    // ギルドIDごとの平均を計算し、その合計を算出
+                    let totalKbpsSum = 0;
+                    let totalKbSum = 0;
+
+                    Object.keys(guildData).forEach(guildId => {
+                        const guildRecentData = guildData[guildId];
+                        const guildKbps = guildRecentData.reduce((acc, item) => acc + parseFloat(item.kbps), 0) / guildRecentData.length;
+                        const guildKb = guildRecentData.reduce((acc, item) => acc + parseFloat(item.mb * 1024), 0) / guildRecentData.length;
+
+                        // ギルドごとの通信速度とデータ量を積算
+                        totalKbpsSum += guildKbps;
+                        totalKbSum += guildKb;
+                    });
+
+                    // 全体の通信速度とデータ量を表示
+                    document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' kbps';
+                    document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' kb';
+
+                    // グラフのデータを更新
+                    const now = new Date().toLocaleTimeString();
+                    trafficChart.data.labels.push(now);
+                    trafficChart.data.datasets[0].data.push(totalKbpsSum);
+                    trafficChart.data.datasets[1].data.push(totalKbSum);
+                }
+
+                // 古いデータを削除（最大30点）
+                if (trafficChart.data.labels.length > 30) {
+                    trafficChart.data.labels.shift();
+                    trafficChart.data.datasets[0].data.shift();
+                    trafficChart.data.datasets[1].data.shift();
+                }
+
+                trafficChart.update();
+            } catch (error) {
+                console.error('Failed to update dashboard:', error);
+            }
+        }
+    
+        // 2秒ごとに更新
+        setInterval(updateDashboard, 5000);
+        updateDashboard(); // 初回実行
+    </script>
+</body>
+</html>
