@@ -35,6 +35,7 @@ async function playSong(guildId, song) {
     serverQueue.commandStatus.removeAllListeners();
     cleanupButtons(guildId);
     clearInterval(serverQueue.time.interval);
+    clearInterval(serverQueue.trafficLogInterval);
     serverQueue.time.interval = null;
     if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
 
@@ -91,6 +92,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
             if (serverQueue.IdolStop) return;
             handleIdleState(serverQueue, guildId);
             clearInterval(serverQueue.time.interval);
+            clearInterval(serverQueue.trafficLogInterval);
             serverQueue.time.interval = null;
             serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
         }
@@ -176,11 +178,11 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 192 * 1024 / 8; // 192kbps
+    const throttleRate = 256 * 1024 / 8; // 256kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
-
+    
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
-
+    
     serverQueue.resource = createAudioResource(ffmpegStream, {
         inputType: StreamType.WebmOpus,
         inlineVolume: true
@@ -189,44 +191,36 @@ async function prepareAndPlayStream(serverQueue, guildId) {
 
     const targetBufferSizeBytes = isNaN(serverQueue.stream.per_sec_bytes * 10) ? 75 * 1024 : serverQueue.stream.per_sec_bytes * 10;
     let accumulatedSizeBytes = 0;
-
-    const startTime = Date.now(); // 計測開始時間
-    let lastLoggedTime = startTime; // ログ出力の初期時間
-
-    await new Promise((resolve, reject) => {
-        let lastLoggedBytes = 0;
+    let lastLoggedBytes = 0;
     
+    // 1秒ごとにログを出力するためのタイマーを設定し、serverQueueに格納
+    serverQueue.trafficLogInterval = setInterval(() => {
+        // 1秒間で受信したバイト量
+        const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
+        lastLoggedBytes = accumulatedSizeBytes;
+    
+        // kbpsとKBの計算
+        const kbps = (bytesSinceLastLog * 8) / 1024; // 1秒間のkbps
+        const readKB = bytesSinceLastLog / 1024; // この間に読み込んだKB
+    
+        const currentTime = Date.now();
+    
+        process.dashboardData.traffic.push({
+            timestamp: currentTime,
+            guildId: guildId,
+            kbps: kbps,
+            kb: readKB,
+        });
+    
+        console.log(
+            `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
+        );
+    }, 1000);
+    
+    await new Promise((resolve, reject) => {
         ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
-    
-            // 現在時刻を取得
-            const currentTime = Date.now();
-    
-            // 1秒ごとにkbpsとその区間で読み込んだMBをログ
-            if (currentTime - lastLoggedTime >= 1000) {
-    
-                // 1秒間で受信したバイト量
-                const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
-                lastLoggedBytes = accumulatedSizeBytes;
-    
-                // kbpsとMBの計算
-                const kbps = (bytesSinceLastLog * 8) / 1024; // 1秒間のkbps
-                const readMB = bytesSinceLastLog / (1024 * 1024); // 1秒間のMB
-    
-                process.dashboardData.traffic.push({
-                    timestamp: currentTime,
-                    guildId: guildId,
-                    kbps: kbps.toFixed(2),
-                    mb: readMB.toFixed(2),
-                });
-    
-                console.log(
-                    `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readMB.toFixed(2)} MB`
-                );
-    
-                lastLoggedTime = currentTime; // ログ出力の時間を更新
-            }
-    
+
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
     
