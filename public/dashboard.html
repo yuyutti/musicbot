@@ -101,7 +101,7 @@
                     Object.keys(guildData).forEach(guildId => {
                         const guildRecentData = guildData[guildId];
                         const guildKbps = guildRecentData.reduce((acc, item) => acc + parseFloat(item.kbps), 0) / guildRecentData.length;
-                        const guildKb = guildRecentData.reduce((acc, item) => acc + parseFloat(item.mb * 1024), 0) / guildRecentData.length;
+                        const guildKb = guildRecentData.reduce((acc, item) => acc + parseFloat(item.kb), 0) / guildRecentData.length;
 
                         // ギルドごとの通信速度とデータ量を積算
                         totalKbpsSum += guildKbps;
@@ -109,8 +109,21 @@
                     });
 
                     // 全体の通信速度とデータ量を表示
-                    document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' kbps';
-                    document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' kb';
+                    // kb/kbps mb/mbpsを切り替える
+                    let isMbpsOrMB = totalKbpsSum > 1024 || totalKbSum > 1024;
+
+                    if (isMbpsOrMB) {
+                        // Mbps/MBに変換
+                        totalKbpsSum = totalKbpsSum / 1024;
+                        totalKbSum = totalKbSum / 1024;
+                        document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' Mbps';
+                        document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' MB';
+                    } else {
+                        // Kbps/KBのまま
+                        document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' Kbps';
+                        document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' KB';
+                    }
+                    
 
                     // グラフのデータを更新
                     const now = new Date().toLocaleTimeString();

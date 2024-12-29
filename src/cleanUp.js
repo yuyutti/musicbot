@@ -11,7 +11,11 @@ async function cleanupQueue(guildId) {
     if (serverQueue.audioPlayer) serverQueue.audioPlayer.stop(true);
     if (serverQueue.resource) serverQueue.resource.playStream.destroy();
     if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
+    if (serverQueue.trafficLogInterval) clearInterval(serverQueue.trafficLogInterval);
     if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
+    if (serverQueue.Throttle) serverQueue.Throttle.destroy();
+    
+    cleanupButtons(guildId);
     musicQueue.delete(guildId);
     updateActivity();
     updatePlayingGuild();
