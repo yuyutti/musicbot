@@ -3,7 +3,6 @@ const { queue: musicQueue } = require('../src/musicQueue');
 const language = require('../lang/commands/stop');
 const { cleanupQueue, cleanupButtons } = require('../src/cleanUp');
 
-
 module.exports = {
     data: {
         name: 'stop',

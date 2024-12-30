@@ -54,7 +54,6 @@ module.exports = {
                 return ActionRowBuilder.from({ components: disabledButton });
             });
             await sentMessage.edit({ components: disabledComponents });
-            await interaction.deferUpdate();
         });
     },
 };

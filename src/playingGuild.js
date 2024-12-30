@@ -10,7 +10,8 @@ process.dashboardData = {
     totalUsers: 0,
     totalConnections: 0,
     totalListener: 0,
-    traffic: []
+    traffic: [],
+    pool: [],
 }
 
 function updatePlayingGuild() {
@@ -24,7 +25,6 @@ function updatePlayingGuild() {
 
     const mapSize = queue.size;
     let listener = 0;
-    let membersInfo = [];
 
     let hasValidServer = false;
     const embed = new EmbedBuilder()

@@ -43,4 +43,4 @@ async function updateActivity() {
     return clientInstant.user.setActivity(activityMessage);
 }
 
-module.exports = { updateActivity, setClientInstant, startActivity, shutdownActivity }
+module.exports = { updateActivity, setClientInstant, startActivity, shutdownActivity, clientInstant };

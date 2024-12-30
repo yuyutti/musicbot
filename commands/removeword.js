@@ -1,7 +1,7 @@
 const { queue: musicQueue } = require('../src/musicQueue');
-const { setData } = require('../SQL/setdata');
+const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require('../SQL/setdata');
 const { removeWord } = require('../SQL/lockup');
-const language = require('../lang/commands/removeword.js');
+const language = require('../lang/commands/removeWord.js');
 
 module.exports = {
     data: {
@@ -26,27 +26,27 @@ module.exports = {
         }]
     },
     async execute(interactionOrMessage, args, lang) {
-        let inputRemoveURL = null; // 明示的にnullを設定
+        let removeWord = null; // 明示的にnullを設定
     
         // スラッシュコマンドの場合
         if (interactionOrMessage.isCommand?.()) {
             const removeUrlOption = interactionOrMessage.options.getBoolean('removeword', false); // 第2引数で必須ではないことを指定
-            inputRemoveURL = removeUrlOption; // true, false, または undefined
+            removeWord = removeUrlOption; // true, false, または undefined
         }
         // 通常のメッセージの場合
         else if (args.length > 0) {
             const arg = args[0].toLowerCase();
-            inputRemoveURL = arg === 'true' || arg === 'false' ? arg === 'true' : null;
+            removeWord = arg === 'true' || arg === 'false' ? arg === 'true' : null;
         }
     
-        // inputRemoveURLが明示的に設定されていない場合の処理
-        if (inputRemoveURL === null) {
+        // removeWordが明示的に設定されていない場合の処理
+        if (removeWord === null) {
             return interactionOrMessage.reply(language.nowSetting[lang](await removeWord(interactionOrMessage.guildId)));
         }
-    
+        console.log(removeWord);
         // 引数が提供された場合、設定を更新
-        await setData(interactionOrMessage.guildId, `${inputRemoveURL}`);
-        interactionOrMessage.reply(language.return[lang](inputRemoveURL));
+        await updateRemoveWord(interactionOrMessage.guildId, `${removeWord}`);
+        interactionOrMessage.reply(language.return[lang](removeWord));
     
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return;

@@ -4,9 +4,11 @@ const fs = require('fs');
 const path = require('path');
 
 const { createTable, isOfflineMode } = require('./SQL/connection');
-const { setData } = require('./SQL/setdata');
+const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require('./SQL/setdata');
 const { removeData } = require('./SQL/removedata');
-const { lang, volume } = require('./SQL/lockup');
+const { lang, volume, LogChannel } = require('./SQL/lockup');
+const { sendLogger } = require('./src/guildLogger');
+
 
 const globalLanguage = require('./lang/commands/global');
 const { updateActivity, setClientInstant, startActivity } = require('./src/activity');
@@ -65,7 +67,6 @@ client.once('ready', async() => {
     
         commands.push(command.data);
     }
-
     // コマンド登録 テストするときはここにguildIdを指定する
     await client.application.commands.set(commands); // 本番環境
     //await client.application.commands.set(commands, process.env.GUILD_ID); // テスト環境
@@ -101,9 +102,11 @@ client.on('messageCreate', async message => {
     const command = client.commands.get(commandName);
 
     if (!command) return;
+    const guildLoggerChannel = await LogChannel(message.guildId);
 
     try {
         loggerChannel.send(`command: **${message.guild.name}**で**!${commandName}**が実行されました`);
+        if (guildLoggerChannel) sendLogger(message, language, commandName, guildLoggerChannel, "!");
         await command.execute(message, args, language);
     }
     catch (error) {
@@ -116,6 +119,7 @@ client.on('messageCreate', async message => {
 client.on('interactionCreate', async interaction => {
     if (!interaction.isCommand()) return;
 
+    const guildLoggerChannel = await LogChannel(interaction.guildId);
     const language = await lang(interaction.guildId);
     if (!isReady) return interaction.reply(globalLanguage.isReady[language]);
 
@@ -129,7 +133,8 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`command: **${interaction.guild.name}**で/**${interaction.commandName}**が実行されました`);
+        loggerChannel.send(`command: **${interaction.guild.name}**で/**${command}**が実行されました`);
+        if (guildLoggerChannel) sendLogger(interaction, language, command, guildLoggerChannel, "/");
         await command.execute(interaction, args, language);
     }
     catch (error) {
@@ -148,7 +153,6 @@ client.on('interactionCreate', async interaction => {
     if (!interaction.isButton()) return;
     const { customId } = interaction;
     if (customId === 'next' || customId === 'prev') return;
-
     let args = [];
     const language = await lang(interaction.guildId);
     const guildVolume = await volume(interaction.guildId);
@@ -171,7 +175,9 @@ client.on('interactionCreate', async interaction => {
     await executeCommand('volume', interaction, args, language);
 
     async function executeCommand(commandName, interaction, args, language) {
+        const guildLoggerChannel = await LogChannel(interaction.guildId);
         loggerChannel.send(`button: **${interaction.guild.name}**で**${commandName}**ボタンが押されました`);
+        if (guildLoggerChannel) sendLogger(interaction, language, commandName, guildLoggerChannel, "#");
         const command = client.commands.get(commandName);
         if (command) await command.execute(interaction, args, language);
     }
@@ -216,7 +222,7 @@ client.on('voiceStateUpdate', async(oldState, newState) => {
 
 client.on('guildCreate', guild => {
     if (guild.preferredLocale === 'ja') {
-        setData(guild.id, 'ja');
+        updateLang(guild.id, 'ja');
     }
     updateActivity();
     loggerChannel.send(`info: ${guild.name} に参加しました。`);
