@@ -133,8 +133,8 @@ client.on('interactionCreate', async interaction => {
     if (!command) return;
 
     try {
-        loggerChannel.send(`command: **${interaction.guild.name}**で/**${command}**が実行されました`);
-        if (guildLoggerChannel) sendLogger(interaction, language, command, guildLoggerChannel, "/");
+        loggerChannel.send(`command: **${interaction.guild.name}**で/**${interaction.commandName}**が実行されました`);
+        if (guildLoggerChannel) sendLogger(interaction, language, interaction.commandName, guildLoggerChannel, "/");
         await command.execute(interaction, args, language);
     }
     catch (error) {
