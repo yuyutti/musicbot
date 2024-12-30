@@ -1,5 +1,5 @@
 const { queue: musicQueue } = require('../src/musicQueue');
-const { setData } = require('../SQL/setdata');
+const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require('../SQL/setdata');
 
 module.exports = {
     data: {
@@ -36,18 +36,18 @@ module.exports = {
             }
         ]
     },
-    async execute(interactionOrMessage, args) {
-        let lang;
+    async execute(interactionOrMessage, args, lang) {
+        lang = null;
 
         if (interactionOrMessage.isCommand?.())lang = interactionOrMessage.options.getString('language');
         else lang = args[0];
     
         if (lang === 'english' || lang === 'en') {
-            await setData(interactionOrMessage.guildId, 'en');
+            await updateLang(interactionOrMessage.guildId, 'en');
             interactionOrMessage.reply('The default language has been changed to English.');
         }
         else if (lang === 'japanese' || lang === 'ja') {
-            await setData(interactionOrMessage.guildId, 'ja');
+            await updateLang(interactionOrMessage.guildId, 'ja');
             interactionOrMessage.reply('デフォルト言語が日本語に変更されました。');
         }
         else {

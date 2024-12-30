@@ -212,9 +212,9 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             kb: readKB,
         });
     
-        console.log(
-            `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
-        );
+        // console.log(
+        //     `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
+        // );
     }, 1000);
     
     await new Promise((resolve, reject) => {
@@ -224,7 +224,10 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
     
-        ffmpegStream.on('error', reject);
+        ffmpegStream.on('error', (error) => {
+            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegStreamエラーが発生しました\n\`\`\`${error}\`\`\``);
+            playSong(guildId, serverQueue.songs[0]);
+        });
     });
 
     setupCommandStatusListeners(serverQueue, guildId);

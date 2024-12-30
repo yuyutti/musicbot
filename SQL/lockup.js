@@ -70,4 +70,30 @@ async function removeWord(guildId) {
     }
 }
 
-module.exports = { volume, lang, removeWord };
+// LogChannelを取得する
+
+async function LogChannel(guildId) {
+    const errorChannel = getErrorChannel();
+
+    // オフラインモードの場合、デフォルト値を返す
+    if (isOfflineMode()) {
+        return null; // デフォルト値
+    }
+
+    const query = 'SELECT LogChannel FROM guild_settings WHERE guild_id = ?';
+
+    try {
+        const [rows] = await connection.execute(query, [guildId]);
+        if (rows.length > 0) {
+            return rows[0].LogChannel;
+        } else {
+            return null; // デフォルト値
+        }
+    } catch (error) {
+        console.error('Failed to get LogChannel:', error);
+        errorChannel.send(`Failed to get LogChannel: \n\`\`\`${error}\`\`\``);
+        return null; // エラー時もデフォルト値
+    }
+}
+
+module.exports = { volume, lang, removeWord, LogChannel };

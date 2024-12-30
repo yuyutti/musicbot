@@ -21,7 +21,8 @@ async function createTable() {
                 guild_id VARCHAR(255) NOT NULL PRIMARY KEY,
                 volume INT NOT NULL DEFAULT 10 CHECK (volume >= 0 AND volume <= 100),
                 lang ENUM('en', 'ja') NOT NULL DEFAULT 'en',
-                removeURL TINYINT NOT NULL DEFAULT 0
+                removeWord TINYINT NOT NULL DEFAULT 0,
+                LogChannel VARCHAR(255) DEFAULT NULL
             )
         `;
         await connection.execute(createTableQuery);
@@ -32,6 +33,17 @@ async function createTable() {
         console.log('Switching to offline mode.');
     }
 }
+
+function PoolMonitor() {
+    process.dashboardData.pool = {
+        connectionLimit: connection.pool.config.connectionLimit, // 最大接続数
+        activeConnections: connection.pool._allConnections.length, // 使用中の接続数
+        idleConnections: connection.pool._freeConnections.length,  // アイドル状態の接続数
+        pendingConnections: connection.pool._connectionQueue.length // 待機中の接続数
+    };
+}
+
+setInterval(PoolMonitor, 10000);
 
 function isOfflineMode() {
     return offlineMode;

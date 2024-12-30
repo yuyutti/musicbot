@@ -4,23 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>ダッシュボード</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+        }
+        .dashboard-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+            gap: 20px;
+        }
+        .dashboard-block {
+            flex: 1 1 calc(33.33% - 20px); 
+            box-sizing: border-box;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            background-color: #f9f9f9;
+            text-align: center;
+        }
+        .canvas-container {
+            height: 75dvh;
+            display: flex;
+            justify-content: center;
+        }
+        @media screen and (max-width: 768px) {
+            .dashboard-block {
+                flex: 1 1 100%;
+            }
+        }
+    </style>
 </head>
 <body>
-    <div id="dashboard">
-        <p>Total Guilds: <span id="totalGuilds">0</span></p>
-        <p>Total Users: <span id="totalUsers">0</span></p>
-        <p>Total Connections: <span id="totalConnections">0</span></p>
-        <p>Total Listeners: <span id="totalListener">0</span></p>
-    </div>
-    <div>
-        <h3>Total Traffic</h3>
-        <p>Total speed: <span id="totalspeed">0</span></p>
-        <p>Total amount: <span id="totalamount">0</span></p>
+    <div class="dashboard-container">
+        <div class="dashboard-block" id="dashboard">
+            <h3>Dashboard</h3>
+            <p>Guilds: <span id="totalGuilds">0</span></p>
+            <p>Users: <span id="totalUsers">0</span></p>
+            <p>Connections: <span id="totalConnections">0</span></p>
+            <p>Listeners: <span id="totalListener">0</span></p>
+        </div>
+        <div class="dashboard-block">
+            <h3>Database Connection Pool</h3>
+            <p>Connection Limit: <span id="connectionLimit">0</span></p>
+            <p>Active Connections: <span id="activeConnections">0</span></p>
+            <p>Idle Connections: <span id="idleConnections">0</span></p>
+            <p>Pending Connections: <span id="pendingConnections">0</span></p>
+        </div>
+        <div class="dashboard-block">
+            <h3>Traffic</h3>
+            <p>Speed: <span id="totalspeed">0</span></p>
+            <p>Amount: <span id="totalamount">0</span></p>
+        </div>
     </div>
 
     <div>
         <h3>Traffic Graph</h3>
-        <canvas id="trafficChart" width="800" height="400"></canvas>
+        <div class="canvas-container">
+            <canvas id="trafficChart" width="800" height="400"></canvas>
+        </div>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -74,6 +116,13 @@
             try {
                 const response = await fetch('/dashboard-data');
                 const data = await response.json();
+
+                // 接続プールデータの描画
+                const pool = data.pool;
+                document.getElementById('connectionLimit').textContent = pool.connectionLimit;
+                document.getElementById('activeConnections').textContent = pool.activeConnections;
+                document.getElementById('idleConnections').textContent = pool.idleConnections;
+                document.getElementById('pendingConnections').textContent = pool.pendingConnections;
     
                 // 全体のデータを更新
                 document.getElementById('totalGuilds').textContent = data.totalGuilds;

@@ -19,7 +19,7 @@ const loadQueueFromFile = async (client) => {
     }
     const data = fs.readFileSync(queueFilePath);
     const queueData = JSON.parse(data);
-    console.log('Loaded queue data from file: ', queueData.slice(0, 5));
+    console.log('Loaded queue data from file');
 
     for (const [key, value] of queueData) {
         if (!value.guildId) {
