@@ -1,7 +1,7 @@
 const { queue: musicQueue } = require('../src/musicQueue');
 const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require('../SQL/setdata');
 const { removeWord } = require('../SQL/lockup');
-const language = require('../lang/commands/removeWord.js');
+const language = require('../lang/commands/removeword.js');
 
 module.exports = {
     data: {
