@@ -41,7 +41,8 @@ module.exports = {
                 .addFields(
                     { name: language.page3_addFields_name1[lang], value: language.page3_addFields_value1[lang] },
                     { name: language.page3_addFields_name2[lang], value: language.page3_addFields_value2[lang] },
-                    { name: language.page3_addFields_name3[lang], value: language.page3_addFields_value3[lang] }
+                    { name: language.page3_addFields_name3[lang], value: language.page3_addFields_value3[lang] },
+                    { name: language.page3_addFields_name4[lang], value: language.page3_addFields_value4[lang] }
                 )
         ];
         helpPages.forEach(page => {

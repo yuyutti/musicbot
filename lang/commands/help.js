@@ -122,6 +122,14 @@ const lang = {
         ja: 'Playコマンド実行時にURLが含まれている場合、メッセージを削除します。',
         en: 'If a URL is included when the Play command is executed, the message will be deleted.'
     },
+    page3_addFields_name4: {
+        ja: 'logger',
+        en: 'logger'
+    },
+    page3_addFields_value4: {
+        ja: 'ログチャンネルの設定、解除を行います。誰が何時、どのコマンドを実行したかを確認できます。',
+        en: 'Sets or removes the log channel. You can check who executed which command and when.'
+    },
     // ボタンリンクのラベル
     inviteButton: {
         ja: 'BOTを招待する',
