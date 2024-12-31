@@ -162,15 +162,18 @@ async function prepareAndPlayStream(serverQueue, guildId) {
 
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
-    .audioBitrate('128k')
-    .audioFrequency(48000)
     .noVideo()
     .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
+    .audioFrequency(48000)
     .outputOptions([
-        '-analyzeduration', '0',
-        '-loglevel', 'error',
+        '-analyzeduration', '5000000',
+        '-fflags', '+genpts',
+        '-loglevel', 'debug',
     ])
     .format('opus')
+    .on('stderr', (stderr) => {
+        console.log('FFmpeg stdout:', stderr);
+    })
     .on('error', (error) => {
         if (error.message.includes('SIGKILL')) return;
         if (error.message.includes('Output stream error: Premature close')) return;
@@ -178,7 +181,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 256 * 1024 / 8; // 256kbps
+    const throttleRate = 512 * 1024 / 8; // 512kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
     
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
@@ -225,9 +228,10 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         });
     
         ffmpegStream.on('error', (error) => {
-            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegStreamエラーが発生しました\n\`\`\`${error}\`\`\``);
-            playSong(guildId, serverQueue.songs[0]);
+            console.error('FFmpeg stream error:', error);
+            reject(error);
         });
+        ffmpegStream
     });
 
     setupCommandStatusListeners(serverQueue, guildId);
