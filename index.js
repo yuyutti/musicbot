@@ -246,15 +246,12 @@ setInterval(() => {
     updatePlayingGuild();
 }, 30000);
 
-// 2時間おきにログを削除
+// 30分おきに20分以上前のトラフィックデータを削除
 setInterval(() => {
-    const oneHourAgo = Date.now() - 3600000; // 現在時刻から1時間前のタイムスタンプ
-
-    // 1時間以内のデータだけを保持
-    process.customData.traffic = process.customData.traffic.filter(log => log.timestamp >= oneHourAgo);
-
-    console.log(`Filtered customData: ${process.customData.traffic.length} entries remaining.`);
-}, 2 * 3600000);
+    const tenMinutesAgo = Date.now() - 10 * 60 * 1000; // 現在時刻から10分前
+    // 10分以内のデータだけを保持
+    process.customData.traffic = process.customData.traffic.filter(log => log.timestamp >= tenMinutesAgo);
+}, 1800000);
 
 process.on('uncaughtException', (err) => {
     console.error(err);
