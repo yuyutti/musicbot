@@ -55,6 +55,8 @@
             <h3>Traffic</h3>
             <p>Speed: <span id="totalspeed">0</span></p>
             <p>Amount: <span id="totalamount">0</span></p>
+            <br>
+            <p>logger length: <span id="trafficLength">0</span></p>
         </div>
     </div>
 
@@ -129,6 +131,9 @@
                 document.getElementById('totalUsers').textContent = data.totalUsers;
                 document.getElementById('totalConnections').textContent = data.totalConnections;
                 document.getElementById('totalListener').textContent = data.totalListener;
+
+                // トラフィックデータの描画
+                document.getElementById('trafficLength').textContent = data.traffic.length;
                 
                 // 全体のトラフィックデータから最新2秒以内のデータを取得
                 const recentData = data.traffic.filter(item => Date.now() - new Date(item.timestamp) < 5000);
@@ -172,7 +177,6 @@
                         document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' Kbps';
                         document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' KB';
                     }
-                    
 
                     // グラフのデータを更新
                     const now = new Date().toLocaleTimeString();
