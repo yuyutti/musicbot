@@ -31,7 +31,10 @@ module.exports = {
     },
     async execute(interactionOrMessage, args, lang) {
         let volume;
-        if (interactionOrMessage.isCommand?.()) volume = interactionOrMessage.options.getInteger('volume');
+        if (interactionOrMessage.isCommand?.()) {
+            await interactionOrMessage.deferReply();
+            volume = interactionOrMessage.options.getInteger('volume');
+        }
         else volume = parseInt(args[0], 10);
 
         if (isNaN(volume) || volume < 0 || volume > 100) {

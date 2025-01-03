@@ -47,7 +47,11 @@ async function playSong(guildId, song) {
 
     try {
         console.log('Playing song:', song.title);
-        serverQueue.stream = await play.stream(song.url, { quality: 0 });
+        serverQueue.stream = await play.stream(song.url, { quality: 0, precache: 10 });
+        if (!serverQueue.stream) {
+            console.error('Failed to get stream:', song.title);
+            return await cleanupQueue(guildId);
+        }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
     } catch (error) {
@@ -168,7 +172,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     .outputOptions([
         '-analyzeduration', '5000000',
         '-fflags', '+genpts',
-        '-loglevel', 'debug',
+        '-loglevel', 'error',
     ])
     .format('opus')
     .on('stderr', (stderr) => {
@@ -196,9 +200,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     let accumulatedSizeBytes = 0;
     let lastLoggedBytes = 0;
     
-    // 1秒ごとにログを出力するためのタイマーを設定し、serverQueueに格納
     serverQueue.trafficLogInterval = setInterval(() => {
-        // 1秒間で受信したバイト量
         const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
         lastLoggedBytes = accumulatedSizeBytes;
     
@@ -228,7 +230,9 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         });
     
         ffmpegStream.on('error', (error) => {
+            if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
             console.error('FFmpeg stream error:', error);
+            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
             reject(error);
         });
         ffmpegStream

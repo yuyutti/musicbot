@@ -31,6 +31,16 @@ const loadQueueFromFile = async (client) => {
             const guild = await client.guilds.cache.get(value.guildId);
             const voiceChannel = await guild.channels.cache.get(value.voiceChannel.id);
             const textChannel = await guild.channels.cache.get(value.textChannel.id);
+            if (!voiceChannel || !textChannel) {
+                console.error(`Failed to find voice or text channel for guild ${key}`);
+                continue;
+            }
+            const botMember = voiceChannel.members.get(client.user.id);
+            const nonBotMembers = voiceChannel.members.filter(m => !m.user.bot);
+            if (!botMember || nonBotMembers.size === 0) {
+                console.log(`Skipping guild ${value.guildId}: Only bots in the voice channel.`);
+                continue;
+            }
             const serverQueue = {
                 textChannel: textChannel,
                 playingMessage: null,

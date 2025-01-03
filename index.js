@@ -18,6 +18,9 @@ const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log')
 
 const { loadQueueFromFile } = require('./src/shutdownHandler');
 
+const { playSong } = require('./src/playsong');
+const { queue: musicQueue } = require('./src/musicQueue');
+
 createTable();
 
 const client = new Client({
@@ -205,13 +208,14 @@ client.on('messageCreate', async message => {
 });
 
 client.on('voiceStateUpdate', async(oldState, newState) => {
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    updateActivity();
-    updatePlayingGuild();
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
     if (oldVoiceChannel && (!newVoiceChannel || newVoiceChannel.id !== oldVoiceChannel.id)) {
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        updateActivity();
+        updatePlayingGuild();
+
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
         if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
@@ -232,6 +236,7 @@ client.on('guildDelete', guild => {
     cleanupButtons(guild.id);
     cleanupQueue(guild.id);
     removeData(guild.id);
+    updateActivity();
     loggerChannel.send(`info: ${guild.name} から退出しました。`);
 });
 
@@ -240,6 +245,16 @@ setInterval(() => {
     updateActivity();
     updatePlayingGuild();
 }, 30000);
+
+// 2時間おきにログを削除
+setInterval(() => {
+    const oneHourAgo = Date.now() - 3600000; // 現在時刻から1時間前のタイムスタンプ
+
+    // 1時間以内のデータだけを保持
+    process.customData = process.customData.filter(log => log.timestamp >= oneHourAgo);
+
+    console.log(`Filtered customData: ${process.customData.length} entries remaining.`);
+}, 2 * 3600000);
 
 process.on('uncaughtException', (err) => {
     console.error(err);
