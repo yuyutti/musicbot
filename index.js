@@ -251,9 +251,9 @@ setInterval(() => {
     const oneHourAgo = Date.now() - 3600000; // 現在時刻から1時間前のタイムスタンプ
 
     // 1時間以内のデータだけを保持
-    process.customData = process.customData.filter(log => log.timestamp >= oneHourAgo);
+    process.customData.traffic = process.customData.traffic.filter(log => log.timestamp >= oneHourAgo);
 
-    console.log(`Filtered customData: ${process.customData.length} entries remaining.`);
+    console.log(`Filtered customData: ${process.customData.traffic.length} entries remaining.`);
 }, 2 * 3600000);
 
 process.on('uncaughtException', (err) => {
