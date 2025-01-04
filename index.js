@@ -250,7 +250,7 @@ setInterval(() => {
 setInterval(() => {
     const tenMinutesAgo = Date.now() - 10 * 60 * 1000; // 現在時刻から10分前
     // 10分以内のデータだけを保持
-    process.customData.traffic = process.customData.traffic.filter(log => log.timestamp >= tenMinutesAgo);
+    process.dashboardData.traffic = process.dashboardData.traffic.filter(log => log.timestamp >= tenMinutesAgo);
 }, 1800000);
 
 process.on('uncaughtException', (err) => {
