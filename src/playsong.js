@@ -54,6 +54,7 @@ async function playSong(guildId, song) {
         }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
+        await pauseTimeout(serverQueue, guildId);
     } catch (error) {
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
@@ -274,6 +275,27 @@ function setupCommandStatusListeners(serverQueue, guildId) {
         const buttons = createControlButtons();
         serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
     });
+}
+
+async function pauseTimeout(serverQueue, guildId) {
+    if (serverQueue.pause?.pauseTime && serverQueue.pause?.pauseStart) {
+        const loggerChannel = getLoggerChannel();
+        // 一時停止タイマーの復元
+
+        const remainingTime = serverQueue.pause.pauseTime - (Date.now() - serverQueue.pause.pauseStart);
+
+        if (remainingTime > 0) {
+            serverQueue.audioPlayer.pause();
+            loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態を復元しました 残り${remainingTime / 1000}秒`);
+            serverQueue.pauseTimeout = setTimeout(() => {
+                loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態続いたため切断しました`);
+                cleanupQueue(guildId);
+            }, remainingTime);
+        } else {
+            loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**の一時停止タイマーはすでに期限切れのため切断しました`);
+            cleanupQueue(guildId);
+        }
+    }
 }
 
 function createControlButtons() {
