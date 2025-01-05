@@ -246,11 +246,11 @@ setInterval(() => {
     updatePlayingGuild();
 }, 30000);
 
-// 15分おきにすべてのトラフィックデータを削除
+// 5分おきにすべてのトラフィックデータを削除
 setInterval(() => {
     process.dashboardData.traffic = [];
     console.log("Traffic data has been cleared.");
-}, 15 * 60 * 1000); // 15分
+}, 300000);
 
 process.on('uncaughtException', (err) => {
     console.error(err);

@@ -1,25 +1,30 @@
 const playdl = require("play-dl");
 const language = require("../lang/commands/play");
 
+const { lang: fetchLang } = require("../SQL/lockup");
+
 async function handleSongType(stringType, songString, userId, lang, interactionOrMessage) {
+    const guildLanguage = await fetchLang(interactionOrMessage.guildId) === "en" ? "en-US" : "ja";
+
+    lang = lang === "en" ? "en-US" : lang;
     let songs = [];
     let name = "";
     switch (stringType) {
         case "yt_video":
-            songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang);
+            songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage);
             break;
         case "yt_playlist":
             songs = await addYouTubePlaylist(songString, userId);
             break;
         case "search":
-            songs = await addSearchResult(songString, userId, interactionOrMessage, lang);
+            songs = await addSearchResult(songString, userId, interactionOrMessage, lang, guildLanguage);
             break;
         case "sp_track":
-            songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang);
+            songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang, guildLanguage);
             break;
         case "sp_album":
         case "sp_playlist":
-            ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang));
+            ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang, guildLanguage));
             break;
         case false:
             await interactionOrMessage.reply({ content: language.unLink[lang], ephemeral: true });
@@ -31,7 +36,7 @@ async function handleSongType(stringType, songString, userId, lang, interactionO
     return { addedCount: songs.length, songs, name };
 }
 
-async function addYouTubeVideo(songString, userId, interactionOrMessage, lang) {
+async function addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage) {
     try {
         const videoInfo = await playdl.video_basic_info(songString);
         return [{
@@ -56,8 +61,8 @@ async function addYouTubePlaylist(songString, userId) {
     }));
 }
 
-async function addSearchResult(songString, userId, interactionOrMessage, lang) {
-    const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1 });
+async function addSearchResult(songString, userId, interactionOrMessage, lang, guildLanguage) {
+    const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
     if (searchResult.length > 0) {
         const video = searchResult[0];
         return [{
@@ -73,10 +78,10 @@ async function addSearchResult(songString, userId, interactionOrMessage, lang) {
     }
 }
 
-async function addSpotifyTrack(songString, userId, interactionOrMessage, lang) {
+async function addSpotifyTrack(songString, userId, interactionOrMessage, lang, guildLanguage) {
     const sp_track = await playdl.spotify(songString);
     const trackName = sp_track.name;
-    const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1 });
+    const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
     if (sp_trackSearchResult.length > 0) {
         const video = sp_trackSearchResult[0];
         return [{
@@ -101,7 +106,7 @@ async function addSpotifyTrackListToQueue(songString, userId, lang, interactionO
     if (resultTracksList && resultTracksList.length > 0) {
         const firstTrack = resultTracksList[0];
         const firstTrackName = firstTrack.name;
-        const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1 });
+        const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
         if (firstSearchResult.length > 0) {
             const firstVideo = firstSearchResult[0];
             const songs = [{
@@ -113,7 +118,7 @@ async function addSpotifyTrackListToQueue(songString, userId, lang, interactionO
 
             const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
                 const trackName = spotifyTrack.name;
-                const searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1 });
+                const searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
                 if (searchResult.length > 0) {
                     const video = searchResult[0];
                     return {
