@@ -1,5 +1,6 @@
 require('dotenv').config();
 const { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+const { ClusterClient, getInfo } = require('discord-hybrid-sharding');
 const fs = require('fs');
 const path = require('path');
 
@@ -18,9 +19,6 @@ const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log')
 
 const { loadQueueFromFile } = require('./src/shutdownHandler');
 
-const { playSong } = require('./src/playsong');
-const { queue: musicQueue } = require('./src/musicQueue');
-
 createTable();
 
 const client = new Client({
@@ -32,6 +30,9 @@ const client = new Client({
     ]
 });
 
+const shardInfo = getInfo();
+
+client.cluster = new ClusterClient(client);
 client.commands = new Collection();
 const prefix = "!";
 
@@ -40,7 +41,14 @@ let errorChannel;
 
 let isReady = false;
 
+const shardId = shardInfo.CLUSTER + 1;
+const totalShards = shardInfo.TOTAL_SHARDS;
+
 client.once('ready', async() => {
+    if (shardId === 1) {
+        require('./src/express');
+    }
+
     const commands = [];
     const commandsPath = path.join(__dirname, 'commands');
     const commandFiles = fs.readdirSync(commandsPath).filter(file => file.endsWith('.js'));
@@ -78,8 +86,8 @@ client.once('ready', async() => {
     loggerChannel = getLoggerChannel();
     errorChannel = getErrorChannel();
 
-    console.log(`Logged in as ${client.user.tag}`);
-    loggerChannel.send('Logged in as ' + client.user.tag);
+    console.log(`Logged in as ${client.user.tag} on Shard ${shardId}/${totalShards} manages ${client.guilds.cache.size} guilds.`);
+    loggerChannel.send(`info: Logged in as ${client.user.tag} on Shard ${shardId}/${totalShards} manages ${client.guilds.cache.size} guilds.`);
     if (isOfflineMode()) errorChannel.send('login is offline mode');
 
     setClientInstant(client);
@@ -240,21 +248,27 @@ client.on('guildDelete', guild => {
     loggerChannel.send(`info: ${guild.name} から退出しました。`);
 });
 
-// 30秒おきにアクティビティを更新
-setInterval(() => {
-    updateActivity();
-    updatePlayingGuild();
-}, 30000);
+if (shardId === 1) {
+    // 30秒おきにアクティビティを更新
+    setInterval(() => {
+        updateActivity();
+        updatePlayingGuild();
+    }, 30000);
 
-// 5分おきにすべてのトラフィックデータを削除
-setInterval(() => {
-    process.dashboardData.traffic = [];
-    console.log("Traffic data has been cleared.");
-}, 300000);
+    // 5分おきにすべてのトラフィックデータを削除
+    setInterval(() => {
+        process.dashboardData.traffic = [];
+        console.log("Traffic data has been cleared.");
+    }, 300000);
+}
 
 process.on('uncaughtException', (err) => {
     console.error(err);
-    errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
+    if (errorChannel) {
+        errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``).catch(console.error);
+    } else {
+        console.error("Error channel is undefined. Cannot send uncaught exception error.");
+    }
 });
 
 client.login(process.env.DISCORD_TOKEN);

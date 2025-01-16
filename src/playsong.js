@@ -4,6 +4,9 @@ const { Throttle } = require('stream-throttle');
 const play = require('play-dl'); // 有志の方が作成したテスト版を使用
 
 const ffmpeg = require('fluent-ffmpeg');
+const ffmpegPath = require('ffmpeg-static');
+ffmpeg.setFfmpegPath(ffmpegPath);
+
 const { volume, lang } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 

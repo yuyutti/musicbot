@@ -3,8 +3,6 @@ const { getStatusChannel, getStatusMessage, getLoggerChannel, getErrorChannel } 
 const { queue } = require('./musicQueue');
 const { updateActivity } = require('./activity');
 
-require('../src/express');
-
 process.dashboardData = {
     totalGuilds: 0,
     totalUsers: 0,
