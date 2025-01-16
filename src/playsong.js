@@ -1,7 +1,7 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
-const play = require('play-dl'); // 有志の方が作成したテスト版を使用
+const play = require('play-dl'); // 有志の方が作成したテスト版をyuyuttiがフォークしたものを使用
 
 const ffmpeg = require('fluent-ffmpeg');
 const { volume, lang } = require('../SQL/lockup');
@@ -46,18 +46,60 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        console.log('Playing song:', song.title);
-        serverQueue.stream = await play.stream(song.url, { quality: 0, precache: 10 });
-        if (!serverQueue.stream) {
-            console.error('Failed to get stream:', song.title);
-            return await cleanupQueue(guildId);
-        }
+        await getStream(serverQueue, song, { quality: 0, precache: 10 });
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
     } catch (error) {
+        console.error(error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
+    }
+}
+
+async function getStream(serverQueue, song, options, retries = 3, delayMs = 1000) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            const streamOptions = attempt === retries ? undefined : options;
+            console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
+            
+            return serverQueue.stream = await play.stream(song.url, streamOptions);
+        } catch (error) {
+            if (error.message.includes('Sign in to confirm your age')) {
+                console.warn('年齢制限エラー: Sign in to confirm your age');
+                handleStreamError(serverQueue, true);
+                return;
+            }
+
+            if (attempt === retries) {
+                const errorChannel = getErrorChannel(serverQueue);
+                if (errorChannel) {
+                    errorChannel.send(
+                        `**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error}\`\`\``
+                    );
+                }
+                handleStreamError(serverQueue, false);
+                throw error;
+            }
+
+            // 次の試行まで待機
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+}
+
+function handleStreamError(serverQueue, isAgeRestricted) {
+    const message = isAgeRestricted
+        ? language.streamErrorToNext[serverQueue.language]
+        : language.streamErrorToEnd[serverQueue.language];
+
+    serverQueue.textChannel.send(message);
+
+    if (serverQueue.songs.length > 1) {
+        serverQueue.songs.shift(); 
+        playSong(serverQueue.guildId, serverQueue.songs[0]);
+    } else {
+        cleanupQueue(serverQueue.guildId);
     }
 }
 

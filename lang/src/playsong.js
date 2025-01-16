@@ -53,6 +53,22 @@ const lang = {
     warning: {
         ja: ':warning: 現在YouTube側の問題により、正常に再生できない場合があります',
         en: ':warning: Currently, due to a problem on YouTube side, you may not be able to play the video properly'
+    },
+    streamErrorToNext: {
+        ja: 'ストリームの取得に失敗しました。次の曲に進みます',
+        en: 'Failed to get the stream. Proceed to the next song'
+    },
+    streamErrorToEnd: {
+        ja: 'ストリームの取得に失敗しました。再生を終了します',
+        en: 'Failed to get the stream. End playback'
+    },
+    ageToNext: {
+        ja: '年齢制限がかかっているため再生できません。次の曲に進みます',
+        en: 'Cannot play due to age restrictions. Proceed to the next song'
+    },
+    ageToEnd: {
+        ja: '年齢制限がかかっているため再生できません。再生を終了します',
+        en: 'Cannot play due to age restrictions. End playback'
     }
 }
 
