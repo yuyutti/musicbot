@@ -198,7 +198,7 @@ client.on('messageCreate', async message => {
             }
         }
         catch (error) {
-            if (error.code === 10008) console.error('The message was not found.');
+            if (error.code === 10008) return;
             else {
                 console.error('Error fetching replied message:', error);
                 errorChannel.send(`Error fetching replied message: \n\`\`\`${error}\`\`\``);
@@ -249,7 +249,6 @@ setInterval(() => {
 // 5分おきにすべてのトラフィックデータを削除
 setInterval(() => {
     process.dashboardData.traffic = [];
-    console.log("Traffic data has been cleared.");
 }, 300000);
 
 process.on('uncaughtException', (err) => {

@@ -57,16 +57,15 @@ async function playSong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, options, retries = 3, delayMs = 1000) {
+async function getStream(serverQueue, song, options, retries = 5, delayMs = 1500) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const streamOptions = attempt === retries ? undefined : options;
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
-            
+
             return serverQueue.stream = await play.stream(song.url, streamOptions);
         } catch (error) {
             if (error.message.includes('Sign in to confirm your age')) {
-                console.warn('年齢制限エラー: Sign in to confirm your age');
                 handleStreamError(serverQueue, true);
                 return;
             }
@@ -82,7 +81,6 @@ async function getStream(serverQueue, song, options, retries = 3, delayMs = 1000
                 throw error;
             }
 
-            // 次の試行まで待機
             await new Promise(resolve => setTimeout(resolve, delayMs));
         }
     }
