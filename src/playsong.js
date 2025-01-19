@@ -30,6 +30,7 @@ async function playSong(guildId, song) {
     };
 
     joinVC(guildId);
+    serverQueue.streamIsAge = false;
     serverQueue.connection.removeAllListeners();
     serverQueue.audioPlayer.removeAllListeners();
     serverQueue.commandStatus.removeAllListeners();
@@ -46,8 +47,9 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        await getStream(serverQueue, song, { quality: 0, precache: 10 });
         await sendPlayingMessage(serverQueue);
+        const isPlaying =  await getStream(serverQueue, song, { quality: 0, precache: 10 });
+        if (!isPlaying) return
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
     } catch (error) {
@@ -57,17 +59,18 @@ async function playSong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, options, retries = 5, delayMs = 1500) {
+async function getStream(serverQueue, song, options, retries = 10, delayMs = 1500) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const streamOptions = attempt === retries ? undefined : options;
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
 
-            return serverQueue.stream = await play.stream(song.url, streamOptions);
+            serverQueue.stream = await play.stream(song.url, streamOptions);
+            return true;
         } catch (error) {
             if (error.message.includes('Sign in to confirm your age')) {
-                handleStreamError(serverQueue, true);
-                return;
+                console.log("age restricted");
+                return await handleStreamError(serverQueue, true);
             }
 
             if (attempt === retries) {
@@ -77,7 +80,7 @@ async function getStream(serverQueue, song, options, retries = 5, delayMs = 1500
                         `**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error}\`\`\``
                     );
                 }
-                handleStreamError(serverQueue, false);
+                await handleStreamError(serverQueue, false);
                 throw error;
             }
 
@@ -86,19 +89,28 @@ async function getStream(serverQueue, song, options, retries = 5, delayMs = 1500
     }
 }
 
-function handleStreamError(serverQueue, isAgeRestricted) {
-    const message = isAgeRestricted
-        ? language.streamErrorToNext[serverQueue.language]
-        : language.streamErrorToEnd[serverQueue.language];
+async function handleStreamError(serverQueue, isAgeRestricted) {
+    const guildId = serverQueue.guildId;
+    let message
 
-    serverQueue.textChannel.send(message);
-
-    if (serverQueue.songs.length > 1) {
-        serverQueue.songs.shift(); 
-        playSong(serverQueue.guildId, serverQueue.songs[0]);
-    } else {
-        cleanupQueue(serverQueue.guildId);
+    if (isAgeRestricted) {
+        if (serverQueue.songs.length > 1) {
+            message = language.ageToNext[serverQueue.language](serverQueue.songs[0].title);
+        }
+        else message = language.ageToEnd[serverQueue.language](serverQueue.songs[0].title);
     }
+
+    else if (serverQueue.songs.length > 1) {
+        message = language.streamErrorToNext[serverQueue.language](serverQueue.songs[0].title);
+    }
+    else message = language.streamErrorToEnd[serverQueue.language](serverQueue.songs[0].title);
+    
+    await serverQueue.playingMessage.edit(message);
+
+    // キューにhistoryを残してap時に次の曲を再生できるようにする
+    serverQueue.songs.shift();
+    serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
+    return false;
 }
 
 function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId) {
@@ -195,16 +207,16 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
-    const seekPosition = serverQueue.time.current;
-
     if (serverQueue.ffmpegProcess) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
     }
 
+    const seekPosition = serverQueue.time.current;
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
     .setStartTime(seekPosition)
     .noVideo()

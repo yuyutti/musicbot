@@ -18,9 +18,6 @@ const { fetchChannel, getLoggerChannel, getErrorChannel } = require('./src/log')
 
 const { loadQueueFromFile } = require('./src/shutdownHandler');
 
-const { playSong } = require('./src/playsong');
-const { queue: musicQueue } = require('./src/musicQueue');
-
 createTable();
 
 const client = new Client({

@@ -42,6 +42,10 @@ const lang = {
         ja: '再生する準備をしています...',
         en: 'Preparing to play...'
     },
+    playing_preparation_warning: {
+        ja: '再生する準備をしています... \n :warning: プラットフォームの仕様変更によりライブラリが対応できていないため、再生までに時間がかかる場合があります。\n エラーとなった場合は時間をおいてもう一度お確かめください。',
+        en: 'Preparing to play... \n :warning: Due to changes in the platform specifications, the library may not be able to support it, so it may take time to play. \n If an error occurs, please wait and check again.'
+    },
     autoPlayError: {
         ja: '自動再生の準備中にエラーが発生しました',
         en: 'An error occurred while preparing for auto play'
@@ -55,20 +59,20 @@ const lang = {
         en: ':warning: Currently, due to a problem on YouTube side, you may not be able to play the video properly'
     },
     streamErrorToNext: {
-        ja: 'ストリームの取得に失敗しました。次の曲に進みます',
-        en: 'Failed to get the stream. Proceed to the next song'
+        ja: (title) => `**${title}**のストリームの取得に失敗しました。\n次の曲に進みます`,
+        en: (title) => `Failed to get the stream of **${title}**. Proceed to the next song`
     },
     streamErrorToEnd: {
-        ja: 'ストリームの取得に失敗しました。再生を終了します',
-        en: 'Failed to get the stream. End playback'
+        ja: (title) => `**${title}**のストリームの取得に失敗しました。\n再生を終了します`,
+        en: (title) => `Failed to get the stream of **${title}**. End playback`
     },
     ageToNext: {
-        ja: '年齢制限がかかっているため再生できません。次の曲に進みます',
-        en: 'Cannot play due to age restrictions. Proceed to the next song'
+        ja: (title) => `**${title}**は、年齢制限コンテンツのため再生できません。\n次の曲に進みます`,
+        en: (title) => `**${title}** is age-restricted content and cannot be played. Proceed to the`
     },
     ageToEnd: {
-        ja: '年齢制限がかかっているため再生できません。再生を終了します',
-        en: 'Cannot play due to age restrictions. End playback'
+        ja: (title) => `**${title}**は、年齢制限コンテンツのため再生できません。\n再生を終了します`,
+        en: (title) => `**${title}** is age-restricted content and cannot be played. End playback`
     }
 }
 
