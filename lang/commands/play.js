@@ -71,9 +71,9 @@ const lang = {
         en: 'An error occurred while retrieving data, please try again'
     },
     maintenanceMode: {
-        ja: '📢 メンテナンス 📢\n\nプラットフォーム側の問題により再生できない状態です。\nメンテナンス中は退席中のステータス表示になります。\n\nBOTのステータスがオンラインに戻り次第、ご利用いただけます。\nしばしの間ご不便おかけしますが、よろしくお願いいたします。\n\n復旧時期: 未定',
-        en: '📢 Maintenance 📢\n\nDue to a problem on the platform side, playback is not possible.\nDuring maintenance, the status will be displayed as offline.\n\nYou can use it as soon as the status of the BOT is back idle.\nWe apologize for any inconvenience this may cause you.\n\nRecovery time: undecided'
-    }
+        ja: '📢 メンテナンス 📢\n\nプラットフォーム側の問題により再生できない状態です。\nメンテナンス中は退席中のステータス表示になります。\n\nBOTのステータスがオンラインに戻り次第、ご利用いただけます。\nしばしの間ご不便おかけしますが、よろしくお願いいたします。\n\n開始日時: 1/23 23:00\n復旧時期: 未定',
+        en: '📢 Maintenance 📢\n\nDue to a problem on the platform side, playback is not possible.\nDuring maintenance, the status will be displayed as idle.\n\nYou can use it as soon as the status of the BOT is back online.\nWe apologize for any inconvenience this may cause you.\n\nStart time: 1/23 23:00\nRecovery time: undecided'
+    }    
 }
 
 module.exports = lang;
