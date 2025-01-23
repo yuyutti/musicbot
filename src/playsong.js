@@ -2,6 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
 const play = require('play-dl'); // 有志の方が作成したテスト版をyuyuttiがフォークしたものを使用
+//const ytdl = require('@distube/ytdl-core');
 
 const ffmpeg = require('fluent-ffmpeg');
 const { volume, lang } = require('../SQL/lockup');
@@ -48,7 +49,7 @@ async function playSong(guildId, song) {
 
     try {
         await sendPlayingMessage(serverQueue);
-        const isPlaying =  await getStream(serverQueue, song, { quality: 0, precache: 10 });
+        const isPlaying =  await getStream(serverQueue, song, { quality: 2, precache: 10 });
         if (!isPlaying) return
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -59,13 +60,14 @@ async function playSong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, options, retries = 10, delayMs = 1500) {
+async function getStream(serverQueue, song, options, retries = 1, delayMs = 1500) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             const streamOptions = attempt === retries ? undefined : options;
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
 
             serverQueue.stream = await play.stream(song.url, streamOptions);
+            //serverQueue.stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, });
             return true;
         } catch (error) {
             if (error.message.includes('Sign in to confirm your age')) {
@@ -207,7 +209,7 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    // serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
 }
 

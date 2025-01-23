@@ -1,3 +1,5 @@
+const { ActivityType } = require('discord.js');
+
 const { queue } = require('./musicQueue');
 const { isOfflineMode } = require('../SQL/connection');
 
@@ -6,6 +8,9 @@ let clientInstant = null
 
 function setClientInstant(client) {
     clientInstant = client
+    client.user.setPresence({ // メンテナンスモード,
+        status: 'idle',
+    });
 }
 
 async function shutdownActivity() {

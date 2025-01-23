@@ -34,6 +34,10 @@ module.exports = {
     },
     alias: ['p'],
     async execute(interactionOrMessage, args, lang) {
+
+        // メンテナンスモード
+        return interactionOrMessage.reply(language.maintenanceMode[lang]);
+
         try {
             const { songString, voiceChannel, userId } = parseInteractionOrMessage(interactionOrMessage, args);
             if (!voiceChannel) return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
