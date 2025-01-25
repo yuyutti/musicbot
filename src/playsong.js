@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
 const play = require('play-dl'); // 有志の方が作成したテスト版をyuyuttiがフォークしたものを使用
-//const ytdl = require('@distube/ytdl-core');
+const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 
 const ffmpeg = require('fluent-ffmpeg');
 const { volume, lang } = require('../SQL/lockup');
@@ -66,8 +66,8 @@ async function getStream(serverQueue, song, options, retries = 1, delayMs = 1500
             const streamOptions = attempt === retries ? undefined : options;
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
 
-            serverQueue.stream = await play.stream(song.url, streamOptions);
-            //serverQueue.stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, });
+            // serverQueue.stream = await play.stream(song.url, streamOptions);
+            serverQueue.stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, });
             return true;
         } catch (error) {
             if (error.message.includes('Sign in to confirm your age')) {
@@ -209,8 +209,8 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    // serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
+    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
@@ -219,7 +219,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     }
 
     const seekPosition = serverQueue.time.current;
-    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
+    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
     .setStartTime(seekPosition)
     .noVideo()
     .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')

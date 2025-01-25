@@ -36,7 +36,7 @@ module.exports = {
     async execute(interactionOrMessage, args, lang) {
 
         // メンテナンスモード
-        return interactionOrMessage.reply(language.maintenanceMode[lang]);
+        // return interactionOrMessage.reply(language.maintenanceMode[lang]);
 
         try {
             const { songString, voiceChannel, userId } = parseInteractionOrMessage(interactionOrMessage, args);
