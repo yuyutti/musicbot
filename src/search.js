@@ -23,6 +23,8 @@ async function handleSongType(stringType, songString, userId, lang, interactionO
             songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang, guildLanguage);
             break;
         case "sp_album":
+            ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang, guildLanguage));
+            break;
         case "sp_playlist":
             ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang, guildLanguage));
             break;
@@ -97,7 +99,7 @@ async function addSpotifyTrack(songString, userId, interactionOrMessage, lang, g
     }
 }
 
-async function addSpotifyTrackListToQueue(songString, userId, lang, interactionOrMessage) {
+async function addSpotifyTrackListToQueue(songString, userId, lang, interactionOrMessage, guildLanguage) {
     const result = await playdl.spotify(songString);
     const name = result.name;
     const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";

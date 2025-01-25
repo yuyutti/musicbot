@@ -1,11 +1,20 @@
 // embed
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, PermissionsBitField } = require('discord.js');
 
 const language = require('../lang/src/guildLogger');
 
 async function sendLogger(interactionOrMessage, lang, command, guildLoggerChannel, commandType) {
     if (!guildLoggerChannel) return;
-    const channel = await interactionOrMessage.guild.channels.fetch(guildLoggerChannel);
+
+    // チャンネルを取得
+    const channel = await interactionOrMessage.guild.channels.fetch(guildLoggerChannel).catch(() => null);
+    if (!channel) return;
+
+    // BOTの権限を確認
+    const botMember = interactionOrMessage.client.user;
+    const permissions = channel.permissionsFor(botMember);
+    if (!permissions.has(PermissionsBitField.Flags.ViewChannel)) return false;
+    if (!permissions.has(PermissionsBitField.Flags.SendMessages)) return false;
 
     const user = interactionOrMessage.user || interactionOrMessage.author;
 
