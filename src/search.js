@@ -1,6 +1,8 @@
 const playdl = require("play-dl");
 const language = require("../lang/commands/play");
 
+const ytdl = require("@distube/ytdl-core");
+
 const { lang: fetchLang } = require("../SQL/lockup");
 
 async function handleSongType(stringType, songString, userId, lang, interactionOrMessage) {
@@ -40,11 +42,12 @@ async function handleSongType(stringType, songString, userId, lang, interactionO
 
 async function addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage) {
     try {
-        const videoInfo = await playdl.video_basic_info(songString);
+        // const videoInfo = await playdl.video_basic_info(songString);
+        const videoInfo = await ytdl.getBasicInfo(songString);
         return [{
-            title: videoInfo.video_details.title,
+            title: videoInfo.videoDetails.title,
             url: songString,
-            duration: videoInfo.video_details.durationInSec,
+            duration: videoInfo.videoDetails.lengthSeconds,
             requestBy: userId
         }];
     } catch {
