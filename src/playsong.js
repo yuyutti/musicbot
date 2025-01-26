@@ -158,6 +158,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
                 const now = Date.now();
                 const elapsed = Math.floor((now - serverQueue.time.start) / 1000);
                 serverQueue.time.current = elapsed;
+                console.log(serverQueue.time.current);
             }, 1000);
             await handlePlayingState(serverQueue, loggerChannel, guildId, song);
         }
@@ -335,6 +336,8 @@ async function pauseTimeout(serverQueue, guildId) {
         const remainingTime = serverQueue.pause.pauseTime - (Date.now() - serverQueue.pause.pauseStart);
 
         if (remainingTime > 0) {
+            clearInterval(serverQueue.time.interval);
+            serverQueue.time.interval = null;
             serverQueue.audioPlayer.pause();
             loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態を復元しました 残り${remainingTime / 1000}秒`);
             serverQueue.pauseTimeout = setTimeout(() => {
