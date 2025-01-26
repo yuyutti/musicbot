@@ -63,17 +63,12 @@ async function playSong(guildId, song) {
 async function getStream(serverQueue, song, options, retries = 1, delayMs = 1500) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
-            const streamOptions = attempt === retries ? undefined : options;
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
 
             // serverQueue.stream = await play.stream(song.url, streamOptions);
             serverQueue.stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, });
             return true;
         } catch (error) {
-            if (error.message.includes('Sign in to confirm your age')) {
-                console.log("age restricted");
-                return await handleStreamError(serverQueue, true);
-            }
 
             if (attempt === retries) {
                 const errorChannel = getErrorChannel(serverQueue);
@@ -234,6 +229,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         console.log('FFmpeg stdout:', stderr);
     })
     .on('error', (error) => {
+        if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
         if (error.message.includes('SIGKILL')) return;
         if (error.message.includes('Output stream error: Premature close')) return;
         console.error('FFmpeg error:', error);
