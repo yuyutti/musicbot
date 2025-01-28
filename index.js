@@ -236,7 +236,6 @@ client.on('voiceStateUpdate', async(oldState, newState) => {
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
         if (oldVoiceChannel.members.size === 1 || isOnlyBotsLeft) {
-            console.log(`BOTがボッチになりました: ${oldVoiceChannel.name}`);
             return cleanupButtons(oldState.guild.id) && cleanupQueue(oldState.guild.id);
         }
     }
