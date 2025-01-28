@@ -210,9 +210,18 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    if (!serverQueue.playingMessage) {
+    try {
+        // 既存のメッセージがある場合は削除
+        if (serverQueue.playingMessage) {
+            await serverQueue.playingMessage.delete();
+            serverQueue.playingMessage = null; // 参照をクリア
+        }
+
+        // 新しいメッセージを送信
         serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
-        //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
+
+    } catch (error) {
+        console.error('Playing message error:', error);
     }
 }
 
