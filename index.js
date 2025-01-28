@@ -1,5 +1,5 @@
 require('dotenv').config();
-const { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
 
@@ -8,7 +8,8 @@ const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require
 const { removeData } = require('./SQL/removedata');
 const { lang, volume, LogChannel } = require('./SQL/lockup');
 const { sendLogger } = require('./src/guildLogger');
-
+const { joinVC } = require('./src/vc');
+const { queue: musicQueue } = require('./src/musicQueue');
 
 const globalLanguage = require('./lang/commands/global');
 const { updateActivity, setClientInstant, startActivity } = require('./src/activity');
@@ -146,13 +147,12 @@ client.on('interactionCreate', async interaction => {
 
 // 音楽再生中のボタン待ち受け //
 client.on('interactionCreate', async interaction => {
-    if (interaction.deferred || interaction.replied) {
-        return console.log('このインタラクションは既に応答されています。');
-    }
+    if (interaction.deferred || interaction.replied) return;
 
     if (!interaction.isButton()) return;
     const { customId } = interaction;
     if (customId === 'next' || customId === 'prev') return;
+
     let args = [];
     const language = await lang(interaction.guildId);
     const guildVolume = await volume(interaction.guildId);
@@ -204,19 +204,40 @@ client.on('messageCreate', async message => {
     }
 });
 
+const processingFlags = new Set();
 client.on('voiceStateUpdate', async(oldState, newState) => {
+    const guildId = newState.guild.id;
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
-    if (oldVoiceChannel && (!newVoiceChannel || newVoiceChannel.id !== oldVoiceChannel.id)) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        updateActivity();
-        updatePlayingGuild();
+    try { // 2回目以降の移動で不具合
+        if (newVoiceChannel && newVoiceChannel.members.has(client.user.id)) {
+            if (newState.member.user.id !== client.user.id) return;
+            if (processingFlags.has(guildId)) return;
+            processingFlags.add(guildId);
 
+            const serverQueue = musicQueue.get(newState.guild.id);
+            if (oldVoiceChannel && oldVoiceChannel.id !== newVoiceChannel.id) {
+                if (!serverQueue) return;
+
+                serverQueue.moveVc = true;
+                serverQueue.voiceChannel = newVoiceChannel;
+                joinVC(newState.guild.id);
+            }
+
+            return processingFlags.delete(guildId);
+        }
+    }
+    finally {
+        processingFlags.delete(guildId);
+    }
+
+    if (oldVoiceChannel) {
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
-        if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
-            return cleanupButtons(newState.guild.id) && cleanupQueue(newState.guild.id);
+        if (oldVoiceChannel.members.size === 1 || isOnlyBotsLeft) {
+            console.log(`BOTがボッチになりました: ${oldVoiceChannel.name}`);
+            return cleanupButtons(oldState.guild.id) && cleanupQueue(oldState.guild.id);
         }
     }
 });

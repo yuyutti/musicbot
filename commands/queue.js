@@ -34,26 +34,33 @@ module.exports = {
         const collector = interactionOrMessage.channel.createMessageComponentCollector({ time: 60000 });
 
         collector.on('collect', async (interaction) => {
-            await interaction.deferUpdate();
+            if (!interaction.deferred && !interaction.replied) {
+                interaction.deferUpdate();
+            }
+        
             if (interaction.customId === 'prev') {
                 currentPage = Math.max(0, currentPage - 1);
-            }
-            else if (interaction.customId === 'next') {
+            } else if (interaction.customId === 'next') {
                 currentPage = Math.min(maxPages - 1, currentPage + 1);
             }
             const embeds = createQueueEmbed(serverQueue, currentPage, maxPages, lang);
             const components = [createPaginationRow(currentPage, maxPages, lang)];
-            await sentMessage.edit({ embeds: embeds, components: components });
+        
+            await sentMessage.edit({ embeds: embeds, components: components, fetchReply: true });
         });
-
+        
         collector.on('end', async () => {
-            const disabledComponents = components.map(component => {
-                const disabledButton = component.components.map(button => {
-                    return ButtonBuilder.from(button).setDisabled(true);
+            try {
+                const disabledComponents = components.map(component => {
+                    const disabledButton = component.components.map(button => {
+                        return ButtonBuilder.from(button).setDisabled(true);
+                    });
+                    return ActionRowBuilder.from({ components: disabledButton });
                 });
-                return ActionRowBuilder.from({ components: disabledButton });
-            });
-            await sentMessage.edit({ components: disabledComponents });
+                await sentMessage.edit({ components: disabledComponents });
+            } catch (error) {
+                console.error('Failed to disable components:', error);
+            }
         });
     },
 };

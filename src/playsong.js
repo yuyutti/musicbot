@@ -125,6 +125,8 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
                 break;
             case VoiceConnectionStatus.Destroyed:
                 if (!voiceStatusFlags.Destroyed) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (serverQueue.moveVc) return serverQueue.moveVc = false;
                     voiceStatusFlags.Destroyed = true;
                     loggerChannel.send(`playing: **${guildName}**のVCから切断しました`);
                     cleanupQueue(guildId);
@@ -132,6 +134,8 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
                 break;
             case VoiceConnectionStatus.Disconnected:
                 if (!voiceStatusFlags.Disconnected) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (serverQueue.moveVc) return serverQueue.moveVc = false;
                     voiceStatusFlags.Disconnected = true;
                     cleanupQueue(guildId);
                 }
@@ -143,6 +147,8 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
 async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            if (serverQueue.moveVc) return;
             if (serverQueue.IdolStop) return;
             handleIdleState(serverQueue, guildId);
             clearInterval(serverQueue.time.interval);
@@ -204,8 +210,10 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
-    //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
+    if (!serverQueue.playingMessage) {
+        serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+        //serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation_warning[serverQueue.language]);
+    }
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
@@ -299,32 +307,39 @@ function setupCommandStatusListeners(serverQueue, guildId) {
         const getVolume = await volume(guildId);
         serverQueue.resource.volume.setVolume(volumePurse(getVolume));
         serverQueue.volume = getVolume;
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('lang', async () => {
         const getLang = await lang(guildId);
         serverQueue.language = getLang;
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('loop', async () => {
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('autoplay', async () => {
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('removeWord', async () => {
-        console.log("removeWord event");
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
+
+    function editEmbed(serverQueue, guildId) {
+        if (serverQueue.editTimeout) {
+            clearTimeout(serverQueue.editTimeout);
+        }
+
+        serverQueue.editTimeout = setTimeout(() => {
+            const buttons = createControlButtons();
+            serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+            
+            serverQueue.editTimeout = null;
+        }, 5000);
+    }
 }
 
 async function pauseTimeout(serverQueue, guildId) {
