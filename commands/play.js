@@ -3,7 +3,7 @@ const { PermissionsBitField } = require('discord.js');
 const playdl = require('play-dl');
 const { queue: musicQueue, CreateServerQueue } = require('../src/musicQueue');
 const { checkPermissions } = require('../src/vc');
-const { handleSongType } = require('../src/search');
+const { handleSongTypeWorker } = require('../src/search');
 const { playSong } = require('../src/playsong');
 const { updatePlayingGuild } = require('../src/playingGuild');
 const { updateActivity } = require('../src/activity');
@@ -48,7 +48,7 @@ module.exports = {
             const stringType = await playdl.validate(songString);
             if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
 
-            const { addedCount, songs, name, related_videos } = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
+            const { addedCount, songs, name, related_videos } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
             if (addedCount === 0) return;
 
             const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
