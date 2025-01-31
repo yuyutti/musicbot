@@ -147,6 +147,14 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
 async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            if (serverQueue.time.current === serverQueue.time.end) {
+                handleIdleState(serverQueue, guildId);
+                clearInterval(serverQueue.time.interval);
+                clearInterval(serverQueue.trafficLogInterval);
+                serverQueue.time.interval = null;
+                serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+                return;
+            }
             await new Promise(resolve => setTimeout(resolve, 3000));
             if (serverQueue.moveVc) return;
             if (serverQueue.IdolStop) return;
@@ -211,15 +219,16 @@ async function handleAutoPlay(serverQueue, guildId) {
 
 async function sendPlayingMessage(serverQueue) {
     try {
-        // 既存のメッセージがある場合は削除
-        if (serverQueue.playingMessage) {
-            await serverQueue.playingMessage.delete();
-            serverQueue.playingMessage = null; // 参照をクリア
+        // チャンネルの最新メッセージを取得
+        const latestMessage = await serverQueue.textChannel.messages.fetch({ limit: 1 });
+
+        // 最新メッセージが存在し、かつそれがplayingMessageであれば、editで更新
+        if (latestMessage.size > 0 && latestMessage.first().id === serverQueue.playingMessage?.id) {
+            await serverQueue.playingMessage.edit(language.playing_preparation[serverQueue.language]);
+        } else {
+            // 最新メッセージでない場合は新しくメッセージを送信
+            serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
         }
-
-        // 新しいメッセージを送信
-        serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
-
     } catch (error) {
         console.error('Playing message error:', error);
     }

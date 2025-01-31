@@ -36,6 +36,7 @@ else {
             lang = lang === "en" ? "en-US" : lang;
             let songs = [];
             let name = "";
+            console.log(`stringType: ${stringType}`);
             switch (stringType) {
                 case "yt_video":
                     songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage);
@@ -132,11 +133,12 @@ else {
             const name = result.name;
             const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";
             const resultTracksList = result.fetched_tracks.get('1');
-
+        
             if (resultTracksList && resultTracksList.length > 0) {
                 const firstTrack = resultTracksList[0];
                 const firstTrackName = firstTrack.name;
                 const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+        
                 if (firstSearchResult.length > 0) {
                     const firstVideo = firstSearchResult[0];
                     const songs = [{
@@ -145,10 +147,16 @@ else {
                         duration: firstVideo.durationInSec,
                         requestBy: userId
                     }];
-
+        
                     const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
                         const trackName = spotifyTrack.name;
-                        const searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+                        let searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+        
+                        if (searchResult.length === 0) {
+                            console.log(`No results found for track: ${trackName} by artist: ${artist}, retrying without artist`);
+                            searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+                        }
+
                         if (searchResult.length > 0) {
                             const video = searchResult[0];
                             return {
@@ -158,9 +166,10 @@ else {
                                 requestBy: userId
                             };
                         }
+        
                         return null;
                     });
-
+        
                     const tracks = await Promise.all(trackPromises);
                     const validTracks = tracks.filter(track => track !== null);
                     songs.push(...validTracks);
@@ -171,7 +180,7 @@ else {
                 }
             }
             return { name, songs: [] };
-        }
+        }        
 
         try {
             const result = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
