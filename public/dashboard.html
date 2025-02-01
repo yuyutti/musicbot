@@ -15,7 +15,7 @@
             gap: 20px;
         }
         .dashboard-block {
-            flex: 1 1 calc(33.33% - 20px); 
+            flex: 1 1 calc(25% - 20px); 
             box-sizing: border-box;
             padding: 10px;
             border: 1px solid #ccc;
@@ -27,6 +27,29 @@
             height: 75dvh;
             display: flex;
             justify-content: center;
+        }
+
+        .traffic-container {
+            display: flex;
+            justify-content: center; /* セクションを横並びで中央揃え */
+            gap: 40px; /* セクションの間に間隔を設ける */
+        }
+
+        .traffic-section {
+            display: flex;
+            flex-direction: column; /* 内容を縦に並べる */
+            justify-content: center; /* 内容を縦方向に中央揃え */
+            align-items: center; /* 横方向にも中央揃え */
+        }
+
+        .traffic-section p {
+            margin: 5px 0; /* 行間の余白を少し調整 */
+        }
+
+        .label {
+            display: inline-block;
+            width: 80px; /* コロン前のラベルの幅を固定 */
+            text-align: center; /* コロンと値を中央に揃える */
         }
         @media screen and (max-width: 768px) {
             .dashboard-block {
@@ -52,12 +75,29 @@
             <p>Pending Connections: <span id="pendingConnections">0</span></p>
         </div>
         <div class="dashboard-block">
-            <h3>Traffic</h3>
-            <p>Speed: <span id="totalspeed">0</span></p>
-            <p>Amount: <span id="totalamount">0</span></p>
-            <br>
-            <p>logger length: <span id="trafficLength">0</span></p>
+            <h3>Search Worker Pool</h3>
+            <p>Created Worker: <span id="workerCounts">0</span></p>
+            <p>Max Worker: <span id="workerMaxCounts">0</span></p>
+            <p>Pool counts: <span id="poolCounts">0</span></p>
+            <p>Pending Tasks: <span id="taskQueueCounts">0</span></p>
         </div>
+        <div class="dashboard-block">
+            <h3>Traffic</h3>
+            <div class="traffic-container">
+                <div class="traffic-section">
+                    <p>send</p>
+                    <p><span class="label">Speed:</span> <span id="sendSpeed">0</span></p> 
+                    <p><span class="label">Amount:</span> <span id="sendAmount">0</span></p>
+                </div>
+                <div class="traffic-section">
+                    <p>receive</p>
+                    <p><span class="label">Speed:</span> <span id="receiveSpeed">0</span></p>
+                    <p><span class="label">Amount:</span> <span id="receiveAmount">0</span></p>
+                </div>
+            </div>
+            <br>
+            <p>Logger Length: <span id="trafficLength">0</span></p>
+        </div>    
     </div>
 
     <div>
@@ -77,7 +117,7 @@
                 labels: [], // 時間を格納
                 datasets: [
                     {
-                        label: 'Traffic Speed (kbps)',
+                        label: 'Send Speed (Kbps)',
                         data: [], // 通信速度を格納
                         borderColor: 'rgba(54, 162, 235, 1)',
                         backgroundColor: 'rgba(54, 162, 235, 0.2)',
@@ -85,7 +125,7 @@
                         fill: true
                     },
                     {
-                        label: 'Data Received (KB)',
+                        label: 'Receive Speed (Kbps)',
                         data: [], // データ量を格納
                         borderColor: 'rgba(255, 99, 132, 1)',
                         backgroundColor: 'rgba(255, 99, 132, 0.2)',
@@ -120,11 +160,18 @@
                 const data = await response.json();
 
                 // 接続プールデータの描画
-                const pool = data.pool;
+                const pool = data.SQLpool;
                 document.getElementById('connectionLimit').textContent = pool.connectionLimit;
                 document.getElementById('activeConnections').textContent = pool.activeConnections;
                 document.getElementById('idleConnections').textContent = pool.idleConnections;
                 document.getElementById('pendingConnections').textContent = pool.pendingConnections;
+
+                // サーチワーカープールデータの描画
+                const workerPool = data.WorkerPool.search;
+                document.getElementById('workerCounts').textContent = workerPool.workerCounts;
+                document.getElementById('workerMaxCounts').textContent = workerPool.workerMaxCounts;
+                document.getElementById('poolCounts').textContent = workerPool.poolCounts;
+                document.getElementById('taskQueueCounts').textContent = workerPool.taskQueueCounts;
     
                 // 全体のデータを更新
                 document.getElementById('totalGuilds').textContent = data.totalGuilds;
@@ -135,12 +182,24 @@
                 // トラフィックデータの描画
                 document.getElementById('trafficLength').textContent = data.traffic.length;
                 
-                // 全体のトラフィックデータから最新2秒以内のデータを取得
+                // 全体のトラフィックデータから最新5秒以内のデータを取得
                 const recentData = data.traffic.filter(item => Date.now() - new Date(item.timestamp) < 5000);
-                console.log(recentData);
+                // console.log(recentData);
                 if (recentData.length > 0) {
-                    // ギルドIDごとにデータを分類
-                    const guildData = recentData.reduce((acc, item) => {
+                    // 送信データと受信データを区別
+                    const sendData = recentData.filter(item => item.rs === 's'); // 送信データ (s)
+                    const receiveData = recentData.filter(item => item.rs === 'r'); // 受信データ (r)
+
+                    // ギルドごとのデータを分ける   
+                    const sendDataByGuild = sendData.reduce((acc, item) => {
+                        if (!acc[item.guildId]) {
+                            acc[item.guildId] = [];
+                        }
+                        acc[item.guildId].push(item);
+                        return acc;
+                    }, {});
+
+                    const receiveDataByGuild = receiveData.reduce((acc, item) => {
                         if (!acc[item.guildId]) {
                             acc[item.guildId] = [];
                         }
@@ -149,40 +208,60 @@
                     }, {});
 
                     // ギルドIDごとの平均を計算し、その合計を算出
-                    let totalKbpsSum = 0;
-                    let totalKbSum = 0;
+                    let sendTotalKbpsSum = 0;
+                    let sendTotalKbSum = 0;
+                    let receiveTotalKbpsSum = 0;
+                    let receiveTotalKbSum = 0;
 
-                    Object.keys(guildData).forEach(guildId => {
-                        const guildRecentData = guildData[guildId];
-                        const guildKbps = guildRecentData.reduce((acc, item) => acc + parseFloat(item.kbps), 0) / guildRecentData.length;
-                        const guildKb = guildRecentData.reduce((acc, item) => acc + parseFloat(item.kb), 0) / guildRecentData.length;
+                    // ギルドごとの送信データの計算
+                    Object.keys(sendDataByGuild).forEach(guildId => {
+                        const guildData = sendDataByGuild[guildId];
+                        const guildKbps = guildData.reduce((acc, item) => acc + parseFloat(item.kbps), 0) / guildData.length;
+                        const guildKb = guildData.reduce((acc, item) => acc + parseFloat(item.kb), 0) / guildData.length;
 
-                        // ギルドごとの通信速度とデータ量を積算
-                        totalKbpsSum += guildKbps;
-                        totalKbSum += guildKb;
+                        sendTotalKbpsSum += guildKbps;
+                        sendTotalKbSum += guildKb;
                     });
 
-                    // 全体の通信速度とデータ量を表示
-                    // kb/kbps mb/mbpsを切り替える
-                    let isMbpsOrMB = totalKbpsSum > 1024 || totalKbSum > 1024;
+                    // ギルドごとの受信データの計算
+                    Object.keys(receiveDataByGuild).forEach(guildId => {
+                        const guildData = receiveDataByGuild[guildId];
+                        const guildKbps = guildData.reduce((acc, item) => acc + parseFloat(item.kbps), 0) / guildData.length;
+                        const guildKb = guildData.reduce((acc, item) => acc + parseFloat(item.kb), 0) / guildData.length;
 
-                    if (isMbpsOrMB) {
-                        // Mbps/MBに変換
-                        totalKbpsSum = totalKbpsSum / 1024;
-                        totalKbSum = totalKbSum / 1024;
-                        document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' Mbps';
-                        document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' MB';
+                        receiveTotalKbpsSum += guildKbps;
+                        receiveTotalKbSum += guildKb;
+                    });
+
+                    // 送信データをダッシュボードに表示
+                    let isSendMbpsOrMB = sendTotalKbpsSum > 1024 || sendTotalKbSum > 1024;
+                    if (isSendMbpsOrMB) {
+                        sendTotalKbpsSum = sendTotalKbpsSum / 1024; // Mbpsに変換
+                        sendTotalKbSum = sendTotalKbSum / 1024; // MBに変換
+                        document.getElementById('sendSpeed').textContent = sendTotalKbpsSum.toFixed(2) + ' Mbps';
+                        document.getElementById('sendAmount').textContent = sendTotalKbSum.toFixed(2) + ' MB';
                     } else {
-                        // Kbps/KBのまま
-                        document.getElementById('totalspeed').textContent = totalKbpsSum.toFixed(2) + ' Kbps';
-                        document.getElementById('totalamount').textContent = totalKbSum.toFixed(2) + ' KB';
+                        document.getElementById('sendSpeed').textContent = sendTotalKbpsSum.toFixed(2) + ' Kbps';
+                        document.getElementById('sendAmount').textContent = sendTotalKbSum.toFixed(2) + ' KB';
+                    }
+
+                    // 受信データをダッシュボードに表示
+                    let isReceiveMbpsOrMB = receiveTotalKbpsSum > 1024 || receiveTotalKbSum > 1024;
+                    if (isReceiveMbpsOrMB) {
+                        receiveTotalKbpsSum = receiveTotalKbpsSum / 1024; // Mbpsに変換
+                        receiveTotalKbSum = receiveTotalKbSum / 1024; // MBに変換
+                        document.getElementById('receiveSpeed').textContent = receiveTotalKbpsSum.toFixed(2) + ' Mbps';
+                        document.getElementById('receiveAmount').textContent = receiveTotalKbSum.toFixed(2) + ' MB';
+                    } else {
+                        document.getElementById('receiveSpeed').textContent = receiveTotalKbpsSum.toFixed(2) + ' Kbps';
+                        document.getElementById('receiveAmount').textContent = receiveTotalKbSum.toFixed(2) + ' KB';
                     }
 
                     // グラフのデータを更新
                     const now = new Date().toLocaleTimeString();
                     trafficChart.data.labels.push(now);
-                    trafficChart.data.datasets[0].data.push(totalKbpsSum);
-                    trafficChart.data.datasets[1].data.push(totalKbSum);
+                    trafficChart.data.datasets[0].data.push(sendTotalKbpsSum);  // 送信データ
+                    trafficChart.data.datasets[1].data.push(receiveTotalKbpsSum);  // 受信データ
                 }
 
                 // 古いデータを削除（最大30点）

@@ -233,7 +233,7 @@ async function sendPlayingMessage(serverQueue) {
     try {
         const messages = await serverQueue.textChannel.messages.fetch({ limit: 3 });
         const isPlayingMessage = messages.some(msg => msg.id === serverQueue.playingMessage?.id);
-
+        
         if (isPlayingMessage) {
             try {
                 serverQueue.playingMessage.edit({ 
@@ -265,15 +265,16 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         YT_accumulatedSizeBytes += chunk.length;
         const bytesSinceLastLog = YT_accumulatedSizeBytes - YT_lastLoggedBytes;
         YT_lastLoggedBytes = YT_accumulatedSizeBytes;
-
+        
         const kbps = (bytesSinceLastLog * 8) / 1024;
         const readKB = bytesSinceLastLog / 1024;
         // console.log( `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`);
         process.dashboardData.traffic.push({
             timestamp: currentTime,
             guildId: guildId,
-            kbps: kbps.toFixed(2),  // 小数点以下2桁で表示
-            kb: readKB.toFixed(2),   // 小数点以下2桁で表示
+            kbps: kbps.toFixed(2),
+            kb: readKB.toFixed(2),
+            rs: "r"
         });
     });
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
@@ -317,20 +318,21 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     serverQueue.trafficLogInterval = setInterval(() => {
         const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
         lastLoggedBytes = accumulatedSizeBytes;
-    
+        
         // kbpsとKBの計算
         const kbps = (bytesSinceLastLog * 8) / 1024;
         const readKB = bytesSinceLastLog / 1024;
-    
+        
         const currentTime = Date.now();
-    
+        
         process.dashboardData.traffic.push({
             timestamp: currentTime,
             guildId: guildId,
             kbps: kbps,
             kb: readKB,
+            rs: "s"
         });
-    
+        
         // console.log(
         //     `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
         // );
@@ -341,7 +343,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             accumulatedSizeBytes += chunk.length;
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
-    
+        
         ffmpegStream.on('error', (error) => {
             if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
             console.error('FFmpeg stream error:', error);

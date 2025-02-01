@@ -4,56 +4,107 @@ const language = require("../lang/commands/play");
 
 const ytdl = require("@distube/ytdl-core");
 
-const { lang: fetchLang } = require("../SQL/lockup");
+class WorkerPool {
+    constructor(poolSize, workerPath) {
+        this.poolSize = poolSize;
+        this.workerPath = workerPath;
+        this.pool = [];
+        this.taskQueue = [];
+        this.workerIdCounter = 0;
 
-if (isMainThread) {
-    // メインスレッド側の処理
-    async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
+        this.syncInterval = setInterval(() => {
+            this.syncDashboardData();
+        }, 10000);
+    }
+
+    syncDashboardData() {
+        process.dashboardData.WorkerPool.search = {
+            workerCounts: this.workerIdCounter,
+            workerMaxCounts: this.poolSize,
+            poolCounts: this.pool.length,
+            taskQueueCounts: this.taskQueue.length
+        };
+    }
+
+    // ワーカー取得
+    getWorker() {
         return new Promise((resolve, reject) => {
-            const worker = new Worker(__filename, {
-                workerData: { stringType, songString, userId, lang, interactionOrMessage }
-            });
+            this.syncDashboardData();
 
-            worker.on("message", resolve); // Workerから結果を受け取る
-            worker.on("error", reject); // エラーを受け取る
-            worker.on("exit", (code) => {
-                if (code !== 0) {
-                    reject(new Error(`Worker stopped with exit code ${code}`));
-                }
-            });
+            if (this.pool.length > 0) {
+                const worker = this.pool.pop();
+                resolve(worker);
+            }
+            else if (this.workerIdCounter < this.poolSize) {
+                const worker = new Worker(this.workerPath);
+                worker.workerId = this.workerIdCounter++;
+
+                resolve(worker);
+            } else {
+                this.taskQueue.push({ resolve, reject });
+            }
         });
     }
 
+    // タスク実行
+    runTask(data) {
+        return new Promise((resolve, reject) => {
+            this.getWorker().then((worker) => {
+                worker.postMessage(data);
+                worker.removeAllListeners('message');
+                worker.removeAllListeners('error');
+
+                worker.on('message', (result) => {
+                    resolve(result);
+                    this.pool.push(worker);
+                });
+
+                worker.on('error', (error) => {
+                    console.error(error);
+                    reject(error);
+                    this.pool.push(worker);
+                });
+
+            }).catch(reject);
+        });
+    }
+}
+
+// メインスレッド側の処理
+if (isMainThread) {
+    const workerPool = new WorkerPool(4, __filename);
+
+    async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
+        const data = { stringType, songString, userId, lang, interactionOrMessage };
+        return workerPool.runTask(data);
+    }
+
     module.exports = { handleSongTypeWorker };
-} 
+}
 else {
     (async () => {
-        const { stringType, songString, userId, lang, interactionOrMessage } = workerData;
-
         async function handleSongType(stringType, songString, userId, lang, interactionOrMessage) {
-            const guildLanguage = await fetchLang(interactionOrMessage.guildId) === "en" ? "en-US" : "ja";
 
-            lang = lang === "en" ? "en-US" : lang;
             let songs = [];
             let name = "";
             switch (stringType) {
                 case "yt_video":
-                    songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage);
+                    songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang);
                     break;
                 case "yt_playlist":
-                    songs = await addYouTubePlaylist(songString, userId, guildLanguage);
+                    songs = await addYouTubePlaylist(songString, userId, lang);
                     break;
                 case "search":
-                    songs = await addSearchResult(songString, userId, interactionOrMessage, lang, guildLanguage);
+                    songs = await addSearchResult(songString, userId, interactionOrMessage, lang);
                     break;
                 case "sp_track":
-                    songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang, guildLanguage);
+                    songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang);
                     break;
                 case "sp_album":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang, guildLanguage));
+                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang));
                     break;
                 case "sp_playlist":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang, guildLanguage));
+                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang));
                     break;
                 case false:
                     await interactionOrMessage.reply({ content: language.unLink[lang], ephemeral: true });
@@ -65,7 +116,7 @@ else {
             return { addedCount: songs.length, songs, name };
         }
 
-        async function addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage) {
+        async function addYouTubeVideo(songString, userId, interactionOrMessage, lang) {
             try {
                 // const videoInfo = await playdl.video_basic_info(songString);
                 const videoInfo = await ytdl.getBasicInfo(songString);
@@ -81,8 +132,8 @@ else {
             }
         }
 
-        async function addYouTubePlaylist(songString, userId, guildLanguage) {
-            const playlistInfo = await playdl.playlist_info(songString, { incomplete: true, language: guildLanguage });
+        async function addYouTubePlaylist(songString, userId, lang) {
+            const playlistInfo = await playdl.playlist_info(songString, { incomplete: true, language: lang });
             return playlistInfo.videos.map(video => ({
                 title: video.title,
                 url: video.url,
@@ -91,8 +142,8 @@ else {
             }));
         }
 
-        async function addSearchResult(songString, userId, interactionOrMessage, lang, guildLanguage) {
-            const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+        async function addSearchResult(songString, userId, interactionOrMessage, lang) {
+            const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1, language: lang });
             if (searchResult.length > 0) {
                 const video = searchResult[0];
                 return [{
@@ -108,10 +159,10 @@ else {
             }
         }
 
-        async function addSpotifyTrack(songString, userId, interactionOrMessage, lang, guildLanguage) {
+        async function addSpotifyTrack(songString, userId, interactionOrMessage, lang) {
             const sp_track = await playdl.spotify(songString);
             const trackName = sp_track.name;
-            const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+            const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: lang });
             if (sp_trackSearchResult.length > 0) {
                 const video = sp_trackSearchResult[0];
                 return [{
@@ -127,7 +178,7 @@ else {
             }
         }
 
-        async function addSpotifyTrackListToQueue(songString, userId, lang, interactionOrMessage, guildLanguage) {
+        async function addSpotifyTrackListToQueue(songString, userId, lang, interactionOrMessage) {
             const result = await playdl.spotify(songString);
             const name = result.name;
             const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";
@@ -136,7 +187,7 @@ else {
             if (resultTracksList && resultTracksList.length > 0) {
                 const firstTrack = resultTracksList[0];
                 const firstTrackName = firstTrack.name;
-                const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+                const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: lang });
         
                 if (firstSearchResult.length > 0) {
                     const firstVideo = firstSearchResult[0];
@@ -149,11 +200,11 @@ else {
         
                     const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
                         const trackName = spotifyTrack.name;
-                        let searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+                        let searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: lang });
         
                         if (searchResult.length === 0) {
                             console.log(`No results found for track: ${trackName} by artist: ${artist}, retrying without artist`);
-                            searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: guildLanguage });
+                            searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: lang });
                         }
 
                         if (searchResult.length > 0) {
@@ -182,9 +233,13 @@ else {
         }        
 
         try {
-            const result = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
-            parentPort.postMessage(result);
+            parentPort.on("message", async (data) => {
+                const { stringType, songString, userId, lang, interactionOrMessage } = data;
+                const result = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
+                parentPort.postMessage(result);
+            });
         } catch (error) {
+            console.error("Worker processing error:", error);
             parentPort.postMessage({ error: error.message });
         }
     })();
