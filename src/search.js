@@ -30,7 +30,7 @@ class WorkerPool {
     getWorker() {
         return new Promise((resolve, reject) => {
             this.syncDashboardData();
-            
+
             if (this.pool.length > 0) {
                 const worker = this.pool.pop();
                 resolve(worker);
@@ -72,7 +72,7 @@ class WorkerPool {
 
 // メインスレッド側の処理
 if (isMainThread) {
-    const workerPool = new WorkerPool(3, __filename);
+    const workerPool = new WorkerPool(4, __filename);
 
     async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
         const data = { stringType, songString, userId, lang, interactionOrMessage };
