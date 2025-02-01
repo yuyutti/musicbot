@@ -2,6 +2,7 @@ const { EmbedBuilder } = require('discord.js');
 const { getStatusChannel, getStatusMessage, getLoggerChannel, getErrorChannel } = require('./log');
 const { queue } = require('./musicQueue');
 const { updateActivity } = require('./activity');
+const { search } = require('play-dl');
 
 require('../src/express');
 
@@ -11,7 +12,8 @@ process.dashboardData = {
     totalConnections: 0,
     totalListener: 0,
     traffic: [],
-    pool: [],
+    SQLpool: [],
+    WorkerPool: { search: [] }
 }
 
 function updatePlayingGuild() {
