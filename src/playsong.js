@@ -49,7 +49,7 @@ async function playSong(guildId, song) {
 
     try {
         await sendPlayingMessage(serverQueue);
-        const isPlaying =  await getStream(serverQueue, song, { quality: 2, precache: 10 });
+        const isPlaying =  await getStream(serverQueue, song);
         if (!isPlaying) return
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -60,13 +60,25 @@ async function playSong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, options, retries = 1, delayMs = 1500) {
+async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
     for (let attempt = 1; attempt <= retries; attempt++) {
         try {
             console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
 
+            const itags = [251, 250, 18, 249, 93, 94, 92, 91, 140];
             // serverQueue.stream = await play.stream(song.url, streamOptions);
-            serverQueue.stream = ytdl(song.url, { filter: 'audioonly', quality: 'highestaudio', highWaterMark: 1 << 25, });
+            const info = await ytdl.getInfo(song.url);
+            const formats = info.formats;
+            
+            for (const itag of itags) {
+                const format = formats.find(f => f.itag === itag);
+                serverQueue.itag = itag;
+                if (format) {
+                    serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
+                    return true;
+                }
+            }
+            serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 100 });
             return true;
         } catch (error) {
 
@@ -186,7 +198,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
 
-    loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
+    loggerChannel.send(`playing: ${serverQueue.itag} / **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
 }
@@ -219,14 +231,20 @@ async function handleAutoPlay(serverQueue, guildId) {
 
 async function sendPlayingMessage(serverQueue) {
     try {
-        // チャンネルの最新メッセージを取得
-        const latestMessage = await serverQueue.textChannel.messages.fetch({ limit: 1 });
+        const messages = await serverQueue.textChannel.messages.fetch({ limit: 3 });
+        const isPlayingMessage = messages.some(msg => msg.id === serverQueue.playingMessage?.id);
 
-        // 最新メッセージが存在し、かつそれがplayingMessageであれば、editで更新
-        if (latestMessage.size > 0 && latestMessage.first().id === serverQueue.playingMessage?.id) {
-            await serverQueue.playingMessage.edit(language.playing_preparation[serverQueue.language]);
+        if (isPlayingMessage) {
+            try {
+                serverQueue.playingMessage.edit({ 
+                    content: language.playing_preparation[serverQueue.language], 
+                    embeds: [],
+                    components: []
+                });
+            } catch (fetchError) {
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+            }
         } else {
-            // 最新メッセージでない場合は新しくメッセージを送信
             serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
         }
     } catch (error) {
@@ -240,13 +258,32 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     }
 
     const seekPosition = serverQueue.time.current;
+    let YT_lastLoggedBytes = 0;
+    let YT_accumulatedSizeBytes = 0;
+    serverQueue.stream.on("data", (chunk) => {
+        const currentTime = Date.now();
+        YT_accumulatedSizeBytes += chunk.length;
+        const bytesSinceLastLog = YT_accumulatedSizeBytes - YT_lastLoggedBytes;
+        YT_lastLoggedBytes = YT_accumulatedSizeBytes;
+
+        const kbps = (bytesSinceLastLog * 8) / 1024;
+        const readKB = bytesSinceLastLog / 1024;
+        // console.log( `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`);
+        process.dashboardData.traffic.push({
+            timestamp: currentTime,
+            guildId: guildId,
+            kbps: kbps.toFixed(2),  // 小数点以下2桁で表示
+            kb: readKB.toFixed(2),   // 小数点以下2桁で表示
+        });
+    });
     serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
     .setStartTime(seekPosition)
     .noVideo()
-    .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
+    .audioFilters('loudnorm=I=-21:TP=-2:LRA=14')
     .audioFrequency(48000)
     .outputOptions([
-        '-analyzeduration', '5000000',
+        '-probesize', '500000',
+        '-analyzeduration', '500000',
         '-fflags', '+genpts',
         '-loglevel', 'error',
     ])
@@ -262,7 +299,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 512 * 1024 / 8; // 512kbps
+    const throttleRate = 1024 * 1024 / 8; // 1024kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
     
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
@@ -282,8 +319,8 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         lastLoggedBytes = accumulatedSizeBytes;
     
         // kbpsとKBの計算
-        const kbps = (bytesSinceLastLog * 8) / 1024; // 1秒間のkbps
-        const readKB = bytesSinceLastLog / 1024; // この間に読み込んだKB
+        const kbps = (bytesSinceLastLog * 8) / 1024;
+        const readKB = bytesSinceLastLog / 1024;
     
         const currentTime = Date.now();
     
@@ -302,7 +339,6 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     await new Promise((resolve, reject) => {
         ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
-
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
     
@@ -444,6 +480,9 @@ function volumePurse(volume) {
 }
 
 function formatDuration(seconds) {
+    if (seconds === "0") {
+        return 'LIVE';
+    }
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secondsLeft = seconds % 60;
