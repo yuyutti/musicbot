@@ -36,7 +36,6 @@ else {
             lang = lang === "en" ? "en-US" : lang;
             let songs = [];
             let name = "";
-            console.log(`stringType: ${stringType}`);
             switch (stringType) {
                 case "yt_video":
                     songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang, guildLanguage);
