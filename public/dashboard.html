@@ -78,7 +78,7 @@
             <h3>Search Worker Pool</h3>
             <p>Alive Worker: <span id="aliveWorkers">null</span></p>
             <p>All Workers: <span id="allWorkerIds">null</span></p>
-            <p>Wait Worker counts: <span id="waitWorker">null</span></p>
+            <p>Wait Worker counts: <span id="waitWorkers">null</span></p>
             <p>Pending Tasks: <span id="taskQueue">null</span></p>
         </div>
         <div class="dashboard-block">
@@ -168,9 +168,9 @@
 
                 // サーチワーカープールデータの描画
                 const workerPool = data.WorkerPool.search;
-                document.getElementById('aliveWorker').textContent = workerPool.aliveWorker;
+                document.getElementById('aliveWorkers').textContent = workerPool.aliveWorkers;
                 document.getElementById('allWorkerIds').textContent = workerPool.allWorkerIds;
-                document.getElementById('waitWorker').textContent = workerPool.waitWorker;
+                document.getElementById('waitWorkers').textContent = workerPool.waitWorkers;
                 document.getElementById('taskQueue').textContent = workerPool.taskQueue;
     
                 // 全体のデータを更新

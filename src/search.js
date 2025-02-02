@@ -30,8 +30,8 @@ class WorkerPool {
         process.dashboardData.WorkerPool.search = {
             poolSize: this.poolSize,
             allWorkerIds: [...this.allWorkerIds],
-            aliveWorker: [...this.aliveWorker],
-            waitWorker: this.pool.length,
+            aliveWorkers: [...this.aliveWorker],
+            waitWorkers: this.pool.length,
             taskQueue: this.taskQueue.length,
         };
     }
