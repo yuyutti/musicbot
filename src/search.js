@@ -7,22 +7,32 @@ const ytdl = require("@distube/ytdl-core");
 class WorkerPool {
     constructor(poolSize, workerPath) {
         this.poolSize = poolSize;
+        this.allWorkerIds = new Set([...Array(poolSize).keys()]);
         this.workerPath = workerPath;
         this.pool = [];
         this.taskQueue = [];
-        this.workerIdCounter = 0;
+        this.aliveWorker = new Set();
 
         this.syncInterval = setInterval(() => {
             this.syncDashboardData();
         }, 10000);
     }
 
+    getNewWorkerId() {
+        const availableIds = [...this.allWorkerIds].filter(id => !this.aliveWorker.has(id));
+        if (availableIds.length === 0) return null;
+        const newId = Math.min(...availableIds);
+        this.aliveWorker.add(newId);
+        return newId;
+    }
+
     syncDashboardData() {
         process.dashboardData.WorkerPool.search = {
-            workerCounts: this.workerIdCounter,
-            workerMaxCounts: this.poolSize,
-            poolCounts: this.pool.length,
-            taskQueueCounts: this.taskQueue.length
+            poolSize: this.poolSize,
+            allWorkerIds: [...this.allWorkerIds],
+            aliveWorker: [...this.aliveWorker],
+            waitWorker: this.pool.length,
+            taskQueue: this.taskQueue.length,
         };
     }
 
@@ -35,12 +45,17 @@ class WorkerPool {
                 const worker = this.pool.pop();
                 resolve(worker);
             }
-            else if (this.workerIdCounter < this.poolSize) {
-                const worker = new Worker(this.workerPath);
-                worker.workerId = this.workerIdCounter++;
 
-                resolve(worker);
-            } else {
+            else if (this.pool.length < this.poolSize) {
+                const workerId = this.getNewWorkerId();
+                if (workerId !== null) {
+                    const worker = new Worker(this.workerPath);
+                    worker.workerId = workerId;
+                    return resolve(worker);
+                }
+            }
+
+            else {
                 this.taskQueue.push({ resolve, reject });
             }
         });
@@ -60,10 +75,12 @@ class WorkerPool {
                 });
 
                 worker.on('error', (error) => {
-                    console.error(error);
+                    console.error(`Worker ${worker.workerId} でエラー発生:`, error);
                     reject(error);
-                    this.pool.push(worker);
+                    this.aliveWorker.delete(worker.workerId);
+                    worker.terminate();
                 });
+                
 
             }).catch(reject);
         });
@@ -75,7 +92,9 @@ if (isMainThread) {
     const workerPool = new WorkerPool(4, __filename);
 
     async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
+        const start = Date.now();
         const data = { stringType, songString, userId, lang, interactionOrMessage };
+        console.log(`end: ${Date.now() - start}ms`);
         return workerPool.runTask(data);
     }
 
