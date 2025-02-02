@@ -76,10 +76,10 @@
         </div>
         <div class="dashboard-block">
             <h3>Search Worker Pool</h3>
-            <p>Created Worker: <span id="workerCounts">0</span></p>
-            <p>Max Worker: <span id="workerMaxCounts">0</span></p>
-            <p>Pool counts: <span id="poolCounts">0</span></p>
-            <p>Pending Tasks: <span id="taskQueueCounts">0</span></p>
+            <p>Alive Worker: <span id="aliveWorker">0</span></p>
+            <p>All Workers: <span id="allWorkerIds">0</span></p>
+            <p>Wait Worker counts: <span id="waitWorker">0</span></p>
+            <p>Pending Tasks: <span id="taskQueue">0</span></p>
         </div>
         <div class="dashboard-block">
             <h3>Traffic</h3>
@@ -154,7 +154,7 @@
             }
         });
 
-        async function updateDashboard() {
+        async function updateGeneralData() {
             try {
                 const response = await fetch('/dashboard-data');
                 const data = await response.json();
@@ -168,16 +168,26 @@
 
                 // サーチワーカープールデータの描画
                 const workerPool = data.WorkerPool.search;
-                document.getElementById('workerCounts').textContent = workerPool.workerCounts;
-                document.getElementById('workerMaxCounts').textContent = workerPool.workerMaxCounts;
-                document.getElementById('poolCounts').textContent = workerPool.poolCounts;
-                document.getElementById('taskQueueCounts').textContent = workerPool.taskQueueCounts;
+                document.getElementById('aliveWorker').textContent = workerPool.aliveWorker;
+                document.getElementById('allWorkerIds').textContent = workerPool.allWorkerIds;
+                document.getElementById('waitWorker').textContent = workerPool.waitWorker;
+                document.getElementById('taskQueue').textContent = workerPool.taskQueue;
     
                 // 全体のデータを更新
                 document.getElementById('totalGuilds').textContent = data.totalGuilds;
                 document.getElementById('totalUsers').textContent = data.totalUsers;
                 document.getElementById('totalConnections').textContent = data.totalConnections;
                 document.getElementById('totalListener').textContent = data.totalListener;
+            }
+            catch (error) {
+                console.error('Failed to update dashboard:', error);
+            }
+        }
+
+        async function updateTrafficData() {
+            try {
+                const response = await fetch('/dashboard-data');
+                const data = await response.json();
 
                 // トラフィックデータの描画
                 document.getElementById('trafficLength').textContent = data.traffic.length;
@@ -276,10 +286,14 @@
                 console.error('Failed to update dashboard:', error);
             }
         }
-    
-        // 2秒ごとに更新
-        setInterval(updateDashboard, 5000);
-        updateDashboard(); // 初回実行
+        
+        // **1秒ごとに一般データを更新**
+        setInterval(updateGeneralData, 1000);
+        updateGeneralData();
+
+        // **5秒ごとにトラフィックデータを更新**
+        setInterval(updateTrafficData, 5000);
+        updateTrafficData();
     </script>
 </body>
 </html>
