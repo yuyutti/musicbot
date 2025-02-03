@@ -61,6 +61,8 @@ const loadQueueFromFile = async (client) => {
                 editTimeout: null,
                 songs: value.songs,
                 ffmpegProcess: null,
+                itag: null,
+                LiveItag: [93, 94, 92, 91, 140],
                 Throttle: null,
                 resource: null,
                 stream: null,

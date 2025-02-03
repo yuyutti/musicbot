@@ -42,6 +42,10 @@ const lang = {
         ja: '再生する準備をしています...',
         en: 'Preparing to play...'
     },
+    playing_LIVE_preparation: {
+        ja: '再生する準備をしています... \nライブ配信のため、再生までに時間がかかる場合があります。',
+        en: 'Preparing to play... \nIt may take some time to play due to live distribution.'
+    },
     playing_preparation_warning: {
         ja: '再生する準備をしています... \n :warning: プラットフォームの仕様変更によりライブラリが対応できていないため、再生までに時間がかかる場合があります。\n エラーとなった場合は時間をおいてもう一度お確かめください。',
         en: 'Preparing to play... \n :warning: Due to changes in the platform specifications, the library may not be able to support it, so it may take time to play. \n If an error occurs, please wait and check again.'

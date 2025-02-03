@@ -47,24 +47,28 @@ module.exports = {
                 return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
             }
 
-            const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
-            if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
+            let serverQueue = musicQueue.get(interactionOrMessage.guildId);
+            if (!serverQueue) {
+                serverQueue = await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
+                musicQueue.set(interactionOrMessage.guildId, serverQueue);
 
+                const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
+                if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
+            }
+            
             const stringType = await playdl.validate(songString);
             if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
-
-            const { addedCount, songs, name, related_videos } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
+            
+            const { addedCount, songs, name } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
             if (addedCount === 0) return;
-
-            const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
-
+            
             if (!songs || !Array.isArray(songs)) {
                 errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。 \n\`\`\`${stringType}\n${songString}\`\`\``);
                 return interactionOrMessage.reply({ content: language.notArray[lang], ephemeral: true });
             }
-
+            
             serverQueue.songs.push(...songs);
-
+            
             updateActivity() && updatePlayingGuild();
             
             await handleSongAddition(serverQueue, stringType, addedCount, interactionOrMessage, lang, name);
