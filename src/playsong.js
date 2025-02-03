@@ -48,9 +48,9 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        await sendPlayingMessage(serverQueue);
         const isPlaying =  await getStream(serverQueue, song);
         if (!isPlaying) return
+        await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
     } catch (error) {
@@ -74,11 +74,17 @@ async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
                 const format = formats.find(f => f.itag === itag);
                 serverQueue.itag = itag;
                 if (format) {
-                    serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
+                    if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                        console.log('LIVE');
+                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
+                    }
+                    else {
+                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28 });
+                    }
                     return true;
                 }
             }
-            serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 100 });
+            serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
             return true;
         } catch (error) {
 
@@ -233,19 +239,41 @@ async function sendPlayingMessage(serverQueue) {
     try {
         const messages = await serverQueue.textChannel.messages.fetch({ limit: 3 });
         const isPlayingMessage = messages.some(msg => msg.id === serverQueue.playingMessage?.id);
-        
+        console.log(serverQueue.LiveItag + ' / ' + serverQueue.itag);
         if (isPlayingMessage) {
             try {
-                serverQueue.playingMessage.edit({ 
-                    content: language.playing_preparation[serverQueue.language], 
-                    embeds: [],
-                    components: []
-                });
+                if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                    console.log('LIVE message');
+                    serverQueue.playingMessage.edit({ 
+                        content: language.playing_LIVE_preparation[serverQueue.language], 
+                        embeds: [],
+                        components: []
+                    });
+                }
+                else {
+                    serverQueue.playingMessage.edit({ 
+                        content: language.playing_preparation[serverQueue.language], 
+                        embeds: [],
+                        components: []
+                    });
+                }
             } catch (fetchError) {
-                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+                if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                    console.log('LIVE message');
+                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
+                }
+                else {
+                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+                }
             }
         } else {
-            serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+            if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                console.log('LIVE message');
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
+            }
+            else {
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+            }
         }
     } catch (error) {
         console.error('Playing message error:', error);

@@ -25,6 +25,8 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         editTimeout: null,
         songs: [],
         ffmpegProcess: null,
+        itag: null,
+        LiveItag: [93, 94, 92, 91, 140],
         Throttle: null,
         resource: null,
         stream: null,
