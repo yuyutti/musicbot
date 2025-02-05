@@ -1,12 +1,2 @@
-# Ignore node_modules
-node_modules/
-
-# Except play-dl package
-!node_modules/play-dl
-!node_modules/play-dl/**
-
 .env
-/data/guildLanguage.json
-/data/use.json
-.data
-serverQueue.json
+/node_modules
