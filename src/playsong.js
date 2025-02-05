@@ -87,7 +87,7 @@ async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
             serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
             return true;
         } catch (error) {
-
+            if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
             if (attempt === retries) {
                 const errorChannel = getErrorChannel(serverQueue);
                 if (errorChannel) {
@@ -120,7 +120,12 @@ async function handleStreamError(serverQueue, isAgeRestricted) {
     }
     else message = language.streamErrorToEnd[serverQueue.language](serverQueue.songs[0].title);
     
-    await serverQueue.playingMessage.edit(message);
+    try {
+        await serverQueue.playingMessage.edit(message);
+    }
+    catch (error) {
+        await serverQueue.textChannel.send(message);
+    }
 
     // キューにhistoryを残してap時に次の曲を再生できるようにする
     serverQueue.songs.shift();
@@ -239,11 +244,9 @@ async function sendPlayingMessage(serverQueue) {
     try {
         const messages = await serverQueue.textChannel.messages.fetch({ limit: 3 });
         const isPlayingMessage = messages.some(msg => msg.id === serverQueue.playingMessage?.id);
-        console.log(serverQueue.LiveItag + ' / ' + serverQueue.itag);
         if (isPlayingMessage) {
             try {
                 if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                    console.log('LIVE message');
                     serverQueue.playingMessage.edit({ 
                         content: language.playing_LIVE_preparation[serverQueue.language], 
                         embeds: [],
@@ -259,7 +262,6 @@ async function sendPlayingMessage(serverQueue) {
                 }
             } catch (fetchError) {
                 if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                    console.log('LIVE message');
                     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
                 }
                 else {
@@ -268,7 +270,6 @@ async function sendPlayingMessage(serverQueue) {
             }
         } else {
             if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                console.log('LIVE message');
                 serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
             }
             else {
@@ -321,7 +322,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         console.log('FFmpeg stdout:', stderr);
     })
     .on('error', (error) => {
-        if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
+        if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true); // play-dl時のエラー
         if (error.message.includes('SIGKILL')) return;
         if (error.message.includes('Output stream error: Premature close')) return;
         console.error('FFmpeg error:', error);
