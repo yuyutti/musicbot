@@ -1,7 +1,8 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
-const play = require('play-dl'); // 有志の方が作成したテスト版を使用
+const play = require('play-dl'); // 有志の方が作成したテスト版をyuyuttiがフォークしたものを使用
+const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
@@ -33,6 +34,7 @@ async function playSong(guildId, song) {
     };
 
     joinVC(guildId);
+    serverQueue.streamIsAge = false;
     serverQueue.connection.removeAllListeners();
     serverQueue.audioPlayer.removeAllListeners();
     serverQueue.commandStatus.removeAllListeners();
@@ -49,19 +51,89 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        console.log('Playing song:', song.title);
-        serverQueue.stream = await play.stream(song.url, { quality: 0, precache: 10 });
-        if (!serverQueue.stream) {
-            console.error('Failed to get stream:', song.title);
-            return await cleanupQueue(guildId);
-        }
+        const isPlaying =  await getStream(serverQueue, song);
+        if (!isPlaying) return
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
     } catch (error) {
+        console.error(error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
     }
+}
+
+async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
+    for (let attempt = 1; attempt <= retries; attempt++) {
+        try {
+            console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
+
+            const itags = [251, 250, 18, 249, 93, 94, 92, 91, 140];
+            // serverQueue.stream = await play.stream(song.url, streamOptions);
+            const info = await ytdl.getInfo(song.url);
+            const formats = info.formats;
+            
+            for (const itag of itags) {
+                const format = formats.find(f => f.itag === itag);
+                serverQueue.itag = itag;
+                if (format) {
+                    if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                        console.log('LIVE');
+                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
+                    }
+                    else {
+                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28 });
+                    }
+                    return true;
+                }
+            }
+            serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
+            return true;
+        } catch (error) {
+            if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
+            if (attempt === retries) {
+                const errorChannel = getErrorChannel(serverQueue);
+                if (errorChannel) {
+                    errorChannel.send(
+                        `**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error}\`\`\``
+                    );
+                }
+                await handleStreamError(serverQueue, false);
+                throw error;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+}
+
+async function handleStreamError(serverQueue, isAgeRestricted) {
+    const guildId = serverQueue.guildId;
+    let message
+
+    if (isAgeRestricted) {
+        if (serverQueue.songs.length > 1) {
+            message = language.ageToNext[serverQueue.language](serverQueue.songs[0].title);
+        }
+        else message = language.ageToEnd[serverQueue.language](serverQueue.songs[0].title);
+    }
+
+    else if (serverQueue.songs.length > 1) {
+        message = language.streamErrorToNext[serverQueue.language](serverQueue.songs[0].title);
+    }
+    else message = language.streamErrorToEnd[serverQueue.language](serverQueue.songs[0].title);
+    
+    try {
+        await serverQueue.playingMessage.edit(message);
+    }
+    catch (error) {
+        await serverQueue.textChannel.send(message);
+    }
+
+    // キューにhistoryを残してap時に次の曲を再生できるようにする
+    serverQueue.songs.shift();
+    serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
+    return false;
 }
 
 function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId) {
@@ -79,6 +151,8 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
                 break;
             case VoiceConnectionStatus.Destroyed:
                 if (!voiceStatusFlags.Destroyed) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (serverQueue.moveVc) return serverQueue.moveVc = false;
                     voiceStatusFlags.Destroyed = true;
                     loggerChannel.send(`playing: **${guildName}**のVCから切断しました`);
                     cleanupQueue(guildId);
@@ -86,6 +160,8 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
                 break;
             case VoiceConnectionStatus.Disconnected:
                 if (!voiceStatusFlags.Disconnected) {
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    if (serverQueue.moveVc) return serverQueue.moveVc = false;
                     voiceStatusFlags.Disconnected = true;
                     cleanupQueue(guildId);
                 }
@@ -97,6 +173,16 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
 async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
+            if (serverQueue.time.current === serverQueue.time.end) {
+                handleIdleState(serverQueue, guildId);
+                clearInterval(serverQueue.time.interval);
+                clearInterval(serverQueue.trafficLogInterval);
+                serverQueue.time.interval = null;
+                serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+                return;
+            }
+            await new Promise(resolve => setTimeout(resolve, 3000));
+            if (serverQueue.moveVc) return;
             if (serverQueue.IdolStop) return;
             handleIdleState(serverQueue, guildId);
             clearInterval(serverQueue.time.interval);
@@ -126,7 +212,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
 
-    loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
+    loggerChannel.send(`playing: ${serverQueue.itag} / **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
 }
@@ -158,23 +244,79 @@ async function handleAutoPlay(serverQueue, guildId) {
 }
 
 async function sendPlayingMessage(serverQueue) {
-    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+    try {
+        const messages = await serverQueue.textChannel.messages.fetch({ limit: 3 });
+        const isPlayingMessage = messages.some(msg => msg.id === serverQueue.playingMessage?.id);
+        if (isPlayingMessage) {
+            try {
+                if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                    serverQueue.playingMessage.edit({ 
+                        content: language.playing_LIVE_preparation[serverQueue.language], 
+                        embeds: [],
+                        components: []
+                    });
+                }
+                else {
+                    serverQueue.playingMessage.edit({ 
+                        content: language.playing_preparation[serverQueue.language], 
+                        embeds: [],
+                        components: []
+                    });
+                }
+            } catch (fetchError) {
+                if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
+                }
+                else {
+                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+                }
+            }
+        } else {
+            if (serverQueue.LiveItag.includes(serverQueue.itag)) {
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
+            }
+            else {
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+            }
+        }
+    } catch (error) {
+        console.error('Playing message error:', error);
+    }
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
-    const seekPosition = serverQueue.time.current;
-
     if (serverQueue.ffmpegProcess) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
     }
 
-    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream.stream)
+    const seekPosition = serverQueue.time.current;
+    let YT_lastLoggedBytes = 0;
+    let YT_accumulatedSizeBytes = 0;
+    serverQueue.stream.on("data", (chunk) => {
+        const currentTime = Date.now();
+        YT_accumulatedSizeBytes += chunk.length;
+        const bytesSinceLastLog = YT_accumulatedSizeBytes - YT_lastLoggedBytes;
+        YT_lastLoggedBytes = YT_accumulatedSizeBytes;
+        
+        const kbps = (bytesSinceLastLog * 8) / 1024;
+        const readKB = bytesSinceLastLog / 1024;
+        // console.log( `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`);
+        process.dashboardData.traffic.push({
+            timestamp: currentTime,
+            guildId: guildId,
+            kbps: kbps.toFixed(2),
+            kb: readKB.toFixed(2),
+            rs: "r"
+        });
+    });
+    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
     .setStartTime(seekPosition)
     .noVideo()
-    .audioFilters('loudnorm=I=-18:TP=-2:LRA=14')
+    .audioFilters('loudnorm=I=-21:TP=-2:LRA=14')
     .audioFrequency(48000)
     .outputOptions([
-        '-analyzeduration', '5000000',
+        '-probesize', '500000',
+        '-analyzeduration', '500000',
         '-fflags', '+genpts',
         '-loglevel', 'error',
     ])
@@ -183,13 +325,14 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         console.log('FFmpeg stdout:', stderr);
     })
     .on('error', (error) => {
+        if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true); // play-dl時のエラー
         if (error.message.includes('SIGKILL')) return;
         if (error.message.includes('Output stream error: Premature close')) return;
         console.error('FFmpeg error:', error);
         getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
     });
 
-    const throttleRate = 512 * 1024 / 8; // 512kbps
+    const throttleRate = 1024 * 1024 / 8; // 1024kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
     
     const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
@@ -207,20 +350,21 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     serverQueue.trafficLogInterval = setInterval(() => {
         const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
         lastLoggedBytes = accumulatedSizeBytes;
-    
+        
         // kbpsとKBの計算
-        const kbps = (bytesSinceLastLog * 8) / 1024; // 1秒間のkbps
-        const readKB = bytesSinceLastLog / 1024; // この間に読み込んだKB
-    
+        const kbps = (bytesSinceLastLog * 8) / 1024;
+        const readKB = bytesSinceLastLog / 1024;
+        
         const currentTime = Date.now();
-    
+        
         process.dashboardData.traffic.push({
             timestamp: currentTime,
             guildId: guildId,
             kbps: kbps,
             kb: readKB,
+            rs: "s"
         });
-    
+        
         // console.log(
         //     `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
         // );
@@ -229,10 +373,9 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     await new Promise((resolve, reject) => {
         ffmpegStream.on('data', (chunk) => {
             accumulatedSizeBytes += chunk.length;
-
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
-    
+        
         ffmpegStream.on('error', (error) => {
             if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
             console.error('FFmpeg stream error:', error);
@@ -252,32 +395,39 @@ function setupCommandStatusListeners(serverQueue, guildId) {
         const getVolume = await volume(guildId);
         serverQueue.resource.volume.setVolume(volumePurse(getVolume));
         serverQueue.volume = getVolume;
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('lang', async () => {
         const getLang = await lang(guildId);
         serverQueue.language = getLang;
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('loop', async () => {
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('autoplay', async () => {
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
 
     serverQueue.commandStatus.on('removeWord', async () => {
-        console.log("removeWord event");
-        const buttons = createControlButtons();
-        serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+        editEmbed(serverQueue, guildId);
     });
+
+    function editEmbed(serverQueue, guildId) {
+        if (serverQueue.editTimeout) {
+            clearTimeout(serverQueue.editTimeout);
+        }
+
+        serverQueue.editTimeout = setTimeout(() => {
+            const buttons = createControlButtons();
+            serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
+            
+            serverQueue.editTimeout = null;
+        }, 5000);
+    }
 }
 
 async function pauseTimeout(serverQueue, guildId) {
@@ -288,6 +438,8 @@ async function pauseTimeout(serverQueue, guildId) {
         const remainingTime = serverQueue.pause.pauseTime - (Date.now() - serverQueue.pause.pauseStart);
 
         if (remainingTime > 0) {
+            clearInterval(serverQueue.time.interval);
+            serverQueue.time.interval = null;
             serverQueue.audioPlayer.pause();
             loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態を復元しました 残り${remainingTime / 1000}秒`);
             serverQueue.pauseTimeout = setTimeout(() => {
@@ -362,6 +514,9 @@ function volumePurse(volume) {
 }
 
 function formatDuration(seconds) {
+    if (seconds === "0") {
+        return 'LIVE';
+    }
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.floor((seconds % 3600) / 60);
     const secondsLeft = seconds % 60;

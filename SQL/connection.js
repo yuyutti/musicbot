@@ -35,7 +35,7 @@ async function createTable() {
 }
 
 function PoolMonitor() {
-    process.dashboardData.pool = {
+    process.dashboardData.SQLpool = {
         connectionLimit: connection.pool.config.connectionLimit, // 最大接続数
         activeConnections: connection.pool._allConnections.length, // 使用中の接続数
         idleConnections: connection.pool._freeConnections.length,  // アイドル状態の接続数

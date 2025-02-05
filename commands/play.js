@@ -3,13 +3,13 @@ const { PermissionsBitField } = require('discord.js');
 const playdl = require('play-dl');
 const { queue: musicQueue, CreateServerQueue } = require('../src/musicQueue');
 const { checkPermissions } = require('../src/vc');
-const { handleSongType } = require('../src/search');
+const { handleSongTypeWorker } = require('../src/search');
 const { playSong } = require('../src/playsong');
 const { updatePlayingGuild } = require('../src/playingGuild');
 const { updateActivity } = require('../src/activity');
 const language = require('../lang/commands/play');
 
-const { getLoggerChannel } = require('../src/log');
+const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 const singleLists = ['yt_video', 'search', 'sp_track'];
 const multiLists = ['yt_playlist', 'sp_album', 'sp_playlist'];
@@ -34,34 +34,48 @@ module.exports = {
     },
     alias: ['p'],
     async execute(interactionOrMessage, args, lang) {
+        const loggerChannel = getLoggerChannel();
+        const errorChannel = getErrorChannel();
+
+        // メンテナンスモード
+        // return interactionOrMessage.reply(language.maintenanceMode[lang]);
+
         try {
             const { songString, voiceChannel, userId } = parseInteractionOrMessage(interactionOrMessage, args);
-            if (!voiceChannel) return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
-
-            const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
-            if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
-
-            const stringType = await playdl.validate(songString);
-            if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
-
-            const { addedCount, songs, name, related_videos } = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
-            if (addedCount === 0) return;
-
-            const serverQueue = musicQueue.get(interactionOrMessage.guildId) || await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
-
-            if (!songs || !Array.isArray(songs)) {
-                errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。${stringType},${songString}`);
-                return interactionOrMessage.reply({ content: language.notArray[lang], ephemeral: true });
+            if (!voiceChannel) {
+                loggerChannel.send(`${interactionOrMessage.guild.name}でボイスチャンネルに参加しない状態でplayコマンドが実行されました`);
+                return interactionOrMessage.reply({ content: language.unVoiceChannel[lang], ephemeral: true });
             }
 
-            serverQueue.songs.push(...songs);
+            let serverQueue = musicQueue.get(interactionOrMessage.guildId);
+            if (!serverQueue) {
+                serverQueue = await CreateServerQueue(interactionOrMessage.guildId, voiceChannel, interactionOrMessage.channel);
+                musicQueue.set(interactionOrMessage.guildId, serverQueue);
 
+                const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
+                if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
+            }
+            
+            const stringType = await playdl.validate(songString);
+            if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
+            
+            const { addedCount, songs, name } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
+            if (addedCount === 0) return;
+            
+            if (!songs || !Array.isArray(songs)) {
+                errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。 \n\`\`\`${stringType}\n${songString}\`\`\``);
+                return interactionOrMessage.reply({ content: language.notArray[lang], ephemeral: true });
+            }
+            
+            serverQueue.songs.push(...songs);
+            
             updateActivity() && updatePlayingGuild();
             
             await handleSongAddition(serverQueue, stringType, addedCount, interactionOrMessage, lang, name);
             await handleRemoveWord(interactionOrMessage, serverQueue, lang);
         } catch (error) {
             console.error('Error executing play command:', error);
+            errorChannel.send(`Error executing play command: \n\`\`\`${error}\`\`\``);
         }
     }
 };
@@ -113,6 +127,8 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
 }
 
 async function handleRemoveWord(interactionOrMessage, serverQueue, lang) {
+    const errorChannel = getErrorChannel();
+
     const textChannelPermission = interactionOrMessage.channel.permissionsFor(interactionOrMessage.client.user);
     if (serverQueue.removeWord && textChannelPermission.has(PermissionsBitField.Flags.ManageMessages)) {
         try {
@@ -123,11 +139,13 @@ async function handleRemoveWord(interactionOrMessage, serverQueue, lang) {
                         console.log('Message deleted after 3 seconds.');
                     } catch (error) {
                         console.error('Failed to delete message after delay:', error);
+                        errorChannel.send(`Failed to delete message after delay: \n\`\`\`${error}\`\`\``);
                     }
                 }, 3000);
             }
         } catch (error) {
             console.error('Failed to delete message:', error);
+            errorChannel.send(`Failed to delete message: \n\`\`\`${error}\`\`\``);
         }
     }
 }

@@ -1,6 +1,10 @@
 require('dotenv').config();
+<<<<<<< HEAD:bot.js
 const { Client, GatewayIntentBits, Collection, ActionRowBuilder, ButtonBuilder } = require('discord.js');
 const { ClusterClient, getInfo } = require('discord-hybrid-sharding');
+=======
+const { Client, GatewayIntentBits, Collection } = require('discord.js');
+>>>>>>> cc8e1f7c0212cf29db1c37c667ee8d933676cf23:index.js
 const fs = require('fs');
 const path = require('path');
 
@@ -9,7 +13,8 @@ const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require
 const { removeData } = require('./SQL/removedata');
 const { lang, volume, LogChannel } = require('./SQL/lockup');
 const { sendLogger } = require('./src/guildLogger');
-
+const { joinVC } = require('./src/vc');
+const { queue: musicQueue } = require('./src/musicQueue');
 
 const globalLanguage = require('./lang/commands/global');
 const { updateActivity, setClientInstant, startActivity } = require('./src/activity');
@@ -157,13 +162,12 @@ client.on('interactionCreate', async interaction => {
 
 // 音楽再生中のボタン待ち受け //
 client.on('interactionCreate', async interaction => {
-    if (interaction.deferred || interaction.replied) {
-        return console.log('このインタラクションは既に応答されています。');
-    }
+    if (interaction.deferred || interaction.replied) return;
 
     if (!interaction.isButton()) return;
     const { customId } = interaction;
     if (customId === 'next' || customId === 'prev') return;
+
     let args = [];
     const language = await lang(interaction.guildId);
     const guildVolume = await volume(interaction.guildId);
@@ -206,7 +210,7 @@ client.on('messageCreate', async message => {
             }
         }
         catch (error) {
-            if (error.code === 10008) console.error('The message was not found.');
+            if (error.code === 10008) return;
             else {
                 console.error('Error fetching replied message:', error);
                 errorChannel.send(`Error fetching replied message: \n\`\`\`${error}\`\`\``);
@@ -215,19 +219,39 @@ client.on('messageCreate', async message => {
     }
 });
 
+const processingFlags = new Set();
 client.on('voiceStateUpdate', async(oldState, newState) => {
+    const guildId = newState.guild.id;
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
-    if (oldVoiceChannel && (!newVoiceChannel || newVoiceChannel.id !== oldVoiceChannel.id)) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        updateActivity();
-        updatePlayingGuild();
+    try { // 2回目以降の移動で不具合
+        if (newVoiceChannel && newVoiceChannel.members.has(client.user.id)) {
+            if (newState.member.user.id !== client.user.id) return;
+            if (processingFlags.has(guildId)) return;
+            processingFlags.add(guildId);
 
+            const serverQueue = musicQueue.get(newState.guild.id);
+            if (oldVoiceChannel && oldVoiceChannel.id !== newVoiceChannel.id) {
+                if (!serverQueue) return;
+
+                serverQueue.moveVc = true;
+                serverQueue.voiceChannel = newVoiceChannel;
+                joinVC(newState.guild.id);
+            }
+
+            return processingFlags.delete(guildId);
+        }
+    }
+    finally {
+        processingFlags.delete(guildId);
+    }
+
+    if (oldVoiceChannel) {
         const isOnlyBotsLeft = oldVoiceChannel.members.filter(member => !member.user.bot).size === 0;
 
-        if (oldVoiceChannel.members.size === 0 || isOnlyBotsLeft) {
-            return cleanupButtons(newState.guild.id) && cleanupQueue(newState.guild.id);
+        if (oldVoiceChannel.members.size === 1 || isOnlyBotsLeft) {
+            return cleanupButtons(oldState.guild.id) && cleanupQueue(oldState.guild.id);
         }
     }
 });
@@ -255,12 +279,19 @@ if (shardId === 1) {
         updatePlayingGuild();
     }, 30000);
 
+<<<<<<< HEAD:bot.js
     // 5分おきにすべてのトラフィックデータを削除
     setInterval(() => {
         process.dashboardData.traffic = [];
         console.log("Traffic data has been cleared.");
     }, 300000);
 }
+=======
+// 5分おきにすべてのトラフィックデータを削除
+setInterval(() => {
+    process.dashboardData.traffic = [];
+}, 300000);
+>>>>>>> cc8e1f7c0212cf29db1c37c667ee8d933676cf23:index.js
 
 process.on('uncaughtException', (err) => {
     console.error(err);

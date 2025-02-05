@@ -27,26 +27,32 @@ module.exports = {
             // 一時停止を解除
             serverQueue.audioPlayer.unpause();
             serverQueue.pause = false;
-            clearInterval(serverQueue.pauseTimeout);
-            interactionOrMessage.reply(language.resumed[lang]);
-    
+
             // 一時停止タイマーをクリア
             if (serverQueue.pauseTimeout) {
                 clearTimeout(serverQueue.pauseTimeout);
                 serverQueue.pauseTimeout = null;
-                serverQueue.pause = false;
             }
+
+            interactionOrMessage.reply(language.resumed[lang]);
         } else {
             // 再生を一時停止
+            clearInterval(serverQueue.time.interval);
+            serverQueue.time.interval = null;
             serverQueue.audioPlayer.pause();
             serverQueue.pause = {
                 pauseStart: Date.now(),
                 pauseTime: pauseTime
             };
-            clearInterval(serverQueue.time.interval);
-            serverQueue.time.interval = null;
+
+            // 古いタイマーがあればクリア
+            if (serverQueue.pauseTimeout) {
+                clearTimeout(serverQueue.pauseTimeout);
+                serverQueue.pauseTimeout = null;
+            }
+
             interactionOrMessage.reply(language.paused[lang]);
-    
+
             // 一時停止状態で1時間経過した場合に切断するタイマーを設定
             serverQueue.pauseTimeout = setTimeout(() => {
                 cleanupQueue(interactionOrMessage.guildId);

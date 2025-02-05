@@ -6,6 +6,9 @@ let clientInstant = null
 
 function setClientInstant(client) {
     clientInstant = client
+    // client.user.setPresence({ // メンテナンスモード,
+    //     status: 'idle',
+    // });
 }
 
 async function shutdownActivity() {

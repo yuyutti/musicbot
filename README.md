@@ -9,9 +9,9 @@
 ![GitHub forks](https://img.shields.io/github/forks/yuyutti/musicbot)
 
 ## 【versions】
-Node.js v18.15.0  
-npm v9.5.0  
-package package.jsonに記載
+Node.js v22.13.1  
+npm v10.4.0  
+package package.jsonに記載  
 Mysql version知らない
 
 ### 【使い方】
