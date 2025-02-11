@@ -92,9 +92,7 @@ if (isMainThread) {
     const workerPool = new WorkerPool(4, __filename);
 
     async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
-        const start = Date.now();
         const data = { stringType, songString, userId, lang, interactionOrMessage };
-        console.log(`end: ${Date.now() - start}ms`);
         return workerPool.runTask(data);
     }
 
