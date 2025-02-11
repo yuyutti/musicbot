@@ -312,7 +312,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     .audioFilters('loudnorm=I=-21:TP=-2:LRA=14')
     .audioFrequency(48000)
     .outputOptions([
-        '-probesize', '500000',
+        '-probesize', '1000000',
         '-analyzeduration', '500000',
         '-fflags', '+genpts',
         '-loglevel', 'error',
