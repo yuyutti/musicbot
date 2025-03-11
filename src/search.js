@@ -62,29 +62,38 @@ class WorkerPool {
     }
 
     // タスク実行
-    runTask(data) {
+    runTask(data, retries = 3) {
         return new Promise((resolve, reject) => {
             this.getWorker().then((worker) => {
                 worker.postMessage(data);
                 worker.removeAllListeners('message');
                 worker.removeAllListeners('error');
-
+    
                 worker.on('message', (result) => {
                     resolve(result);
                     this.pool.push(worker);
                 });
-
-                worker.on('error', (error) => {
+    
+                worker.on('error', async (error) => {
                     console.error(`Worker ${worker.workerId} でエラー発生:`, error);
+    
+                    if (error.message.includes("401") && retries > 0) {
+                        console.log(`再試行します... 残り回数: ${retries}`);
+                        this.aliveWorker.delete(worker.workerId);
+                        worker.terminate();
+                        
+                        await new Promise(res => setTimeout(res, 1000)); 
+                        return resolve(this.runTask(data, retries - 1));
+                    }
+    
                     reject(error);
                     this.aliveWorker.delete(worker.workerId);
                     worker.terminate();
                 });
-                
-
+    
             }).catch(reject);
         });
-    }
+    }    
 }
 
 // メインスレッド側の処理
