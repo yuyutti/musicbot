@@ -36,7 +36,14 @@ async function cleanupButtons(guildId) {
                 )
             );
 
-            serverQueue.playingMessage.edit({ components: disabledButtons }).catch(console.error);
+            try {
+                await serverQueue.playingMessage.edit({ components: disabledButtons });
+            }
+            catch (error) {
+                // ChannelNotCachedError: Cannot edit a message in a channel that has been deleted
+                if (error.message.includes('ChannelNotCached')) return ;
+                console.error(`message edit error for guild ID: ${guildId}: ${error.message}`);
+            }
         }
         catch (error) {
             console.error(`Failed to disable buttons for guild ID: ${guildId}:`, error);
