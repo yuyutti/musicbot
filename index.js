@@ -69,8 +69,8 @@ client.once('ready', async() => {
         commands.push(command.data);
     }
     // コマンド登録 テストするときはここにguildIdを指定する
-    await client.application.commands.set(commands); // 本番環境
-    //await client.application.commands.set(commands, process.env.GUILD_ID); // テスト環境
+    //await client.application.commands.set(commands); // 本番環境
+    await client.application.commands.set(commands, process.env.GUILD_ID); // テスト環境
     //await client.application.commands.set([], process.env.GUILD_ID); // テスト環境コマンドの削除(グローバルコマンドで定義済みのため)
     await fetchChannel(client);
     loggerChannel = getLoggerChannel();

@@ -95,4 +95,23 @@ async function updateLogChannel(guildId, logChannel) {
     }
 }
 
-module.exports = { updateVolume, updateLang, updateRemoveWord, updateLogChannel };
+async function updateFilter(guildId, filter) {
+    if (isOfflineMode()) {
+        errorChannel.send('Offline mode active. Skipping database update.');
+        return;
+    }
+
+    const query = `INSERT INTO guild_settings (guild_id, filter) VALUES (?, ?)
+                ON DUPLICATE KEY UPDATE filter = VALUES(filter)`;
+    const values = [guildId, filter];
+
+    try {
+        await connection.execute(query, values);
+    } catch (error) {
+        console.error('Failed to update filter:', error);
+        errorChannel.send(`Failed to update filter: \n\`\`\`${error}\`\`\``);
+        throw error;
+    }
+}
+
+module.exports = { updateVolume, updateLang, updateRemoveWord, updateLogChannel, updateFilter };

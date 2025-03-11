@@ -5,7 +5,9 @@ const play = require('play-dl'); // 有志の方が作成したテスト版をyu
 const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 
 const ffmpeg = require('fluent-ffmpeg');
-const { volume, lang } = require('../SQL/lockup');
+const ffmpegPath = require('ffmpeg-static'); 
+ffmpeg.setFfmpegPath(ffmpegPath);
+const { volume, lang, filter: getFilter } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
 const { queue: musicQueue } = require('./musicQueue');
@@ -57,13 +59,18 @@ async function playSong(guildId, song) {
         await pauseTimeout(serverQueue, guildId);
         serverQueue.retryCount = null;
     } catch (error) {
-        console.error(error);
-        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
-        serverQueue.retryCount = serverQueue.retryCount || 0;
-        serverQueue.retryCount++;
-        if (serverQueue.retryCount > 8) return
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        return playSong(guildId, serverQueue.songs[0]);
+        if (error.message.includes("Only one output stream is supported")) {
+            serverQueue.retryCount = serverQueue.retryCount || 0;
+            serverQueue.retryCount++;
+            if (serverQueue.retryCount > 8) return handleStreamError(serverQueue, false);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            return playSong(guildId, serverQueue.songs[0]);
+        }
+        else {
+            console.error(error);
+            errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+            cleanupQueue(guildId);
+        }
     }
 }
 
@@ -290,9 +297,11 @@ async function sendPlayingMessage(serverQueue) {
 async function prepareAndPlayStream(serverQueue, guildId) {
     if (serverQueue.ffmpegProcess) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
+        serverQueue.ffmpegProcess = null;
     }
     if (serverQueue.Throttle) {
         serverQueue.Throttle.end();
+        serverQueue.Throttle = null;
     }
 
     const seekPosition = serverQueue.time.current;
@@ -316,26 +325,35 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         });
     });
 
-    // DBにfilterを保存するように今後変更する
-    // DBに保存されてるデフォルトの値はauto
-
     const vcSize = serverQueue.voiceChannel.members.size;
-    const filterResult = "auto";
+    const currentFilter = await getFilter(guildId);
 
-    const selectedFilter = filter
-        .filter(f => f.auto)
-        .sort((a, b) => a.minVCSize - b.minVCSize)
-        .find(f => vcSize <= f.minVCSize);
+    if (currentFilter === 'auto') {
+        serverQueue.filter = filter
+            .filter(f => f.auto)
+            .sort((a, b) => a.minVCSize - b.minVCSize)
+            .find(f => vcSize <= f.minVCSize);
+    } else {
+        serverQueue.filter = filter.find(f => f.value === currentFilter);
+        serverQueue.filter.auto = false;
+    }
 
-    console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${selectedFilter.name}`);
+    if (!serverQueue.filter) {
+        serverQueue.filter = filter
+            .filter(f => f.auto)
+            .sort((a, b) => a.minVCSize - b.minVCSize)
+            .find(f => vcSize <= f.minVCSize);
+    }
+
+    console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
     serverQueue.retryCount = serverQueue.retryCount || 0;
-    serverQueue.Filter = selectedFilter;
+    serverQueue.Filter = serverQueue.filter;
     const ffmpegProcess = async () => {
         serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
         .setStartTime(seekPosition)
         .noVideo()
-        .audioFilters(selectedFilter.filter)
+        .audioFilters(serverQueue.filter.filter)
         .audioFrequency(48000)
         .outputOptions([
             '-reconnect_at_eof', '1',
