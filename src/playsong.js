@@ -14,6 +14,8 @@ const { cleanupQueue, cleanupButtons } = require('./cleanUp');
 const { updatePlayingGuild } = require('../src/playingGuild');
 const { updateActivity } = require('../src/activity');
 const { joinVC } = require('./vc');
+const filter = require('./filter');
+
 const { getLoggerChannel, getErrorChannel } = require('./log');
 
 async function playSong(guildId, song) {
@@ -54,6 +56,7 @@ async function playSong(guildId, song) {
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
     } catch (error) {
+        console.log("プレイソング全体のシステムエラー")
         console.error(error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
         cleanupQueue(guildId);
@@ -75,7 +78,6 @@ async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
                 serverQueue.itag = itag;
                 if (format) {
                     if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                        console.log('LIVE');
                         serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
                     }
                     else {
@@ -285,6 +287,9 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     if (serverQueue.ffmpegProcess) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
     }
+    if (serverQueue.Throttle) {
+        serverQueue.Throttle.end();
+    }
 
     const seekPosition = serverQueue.time.current;
     let YT_lastLoggedBytes = 0;
@@ -306,28 +311,62 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             rs: "r"
         });
     });
-    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
-    .setStartTime(seekPosition)
-    .noVideo()
-    .audioFilters('loudnorm=I=-21:TP=-2:LRA=14')
-    .audioFrequency(48000)
-    .outputOptions([
-        '-probesize', '1000000',
-        '-analyzeduration', '500000',
-        '-fflags', '+genpts',
-        '-loglevel', 'error',
-    ])
-    .format('opus')
-    .on('stderr', (stderr) => {
-        console.log('FFmpeg stdout:', stderr);
-    })
-    .on('error', (error) => {
-        if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true); // play-dl時のエラー
-        if (error.message.includes('SIGKILL')) return;
-        if (error.message.includes('Output stream error: Premature close')) return;
-        console.error('FFmpeg error:', error);
-        getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
-    });
+
+    // DBにfilterを保存するように今後変更する
+    // DBに保存されてるデフォルトの値はauto
+
+    const vcSize = serverQueue.voiceChannel.members.size;
+    const filterResult = "auto";
+
+    const selectedFilter = filter
+        .filter(f => f.auto)
+        .sort((a, b) => a.minVCSize - b.minVCSize)
+        .find(f => vcSize <= f.minVCSize);
+
+    console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${selectedFilter.name}`);
+
+    serverQueue.retryCount = serverQueue.retryCount || 0;
+    serverQueue.Filter = selectedFilter;
+    const ffmpegProcess = async () => {
+        serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
+        .setStartTime(seekPosition)
+        .noVideo()
+        .audioFilters(selectedFilter.filter)
+        .audioFrequency(48000)
+        .outputOptions([
+            '-reconnect_at_eof', '1',
+            '-reconnect_streamed', '1',
+            '-fflags', '+genpts',
+            '-loglevel', 'error',
+        ])
+        .format('opus')
+        .on('stderr', (stderr) => {
+            console.log('FFmpeg stdout:', stderr);
+        })
+        .on('error', async (error) => {
+            // if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
+            if (error.message.includes('SIGKILL')) return;
+            if (error.message.includes('Output stream error: Premature close')) return;
+            if (error.message.includes('403')) {
+                serverQueue.retryCount++;
+                getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で${serverQueue.songs[0].title}を再取得します。`);
+                if (serverQueue.retryCount > 8) {
+                    return handleStreamError(serverQueue, false);
+                }
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                return playSong(guildId, serverQueue.songs[0]);
+            }
+            else {
+                console.error('FFmpeg error:', error);
+                getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
+                handleIdleState(serverQueue, guildId);
+            }
+        });
+    }
+
+    ffmpegProcess();
+
+    serverQueue.retryCount = null;
 
     const throttleRate = 1024 * 1024 / 8; // 1024kbps
     serverQueue.Throttle = new Throttle({ rate: throttleRate });
@@ -498,7 +537,11 @@ function nowPlayingEmbed(guildId) {
                 name: language.Fields4_name[lan],
                 value: `Volume: \`${serverQueue.volume}%\` | Loop: \`${serverQueue.loop ? 'ON' : 'Off'}\` | AutoPlay: \`${serverQueue.autoPlay ? 'ON' : 'Off' }\` | removeWord : \`${serverQueue.removeWord ? 'ON' : 'Off' }\` | lang : \`${serverQueue.language}\``
             },
-            { name: language.Fields5_name[lan], value: `<@${currentSong.requestBy}>` }
+            {
+                name: language.Fields5_name[lan],
+                value: `${lan === "ja" ? serverQueue.Filter.name_ja : serverQueue.Filter.name} ${serverQueue.Filter.auto ? (lan === "ja" ? " (自動)" : " (auto)") : ""}`
+            },
+            { name: language.Fields6_name[lan], value: `<@${currentSong.requestBy}>` }
         )
         .setTimestamp()
         .setFooter({ text: 'DJ-Music', iconURL: 'https://cdn.discordapp.com/app-icons/1113282204064297010/9934a13736d8e8e012d6cb71a5f2107a.png?size=256' });
