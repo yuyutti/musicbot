@@ -55,11 +55,15 @@ async function playSong(guildId, song) {
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
+        serverQueue.retryCount = null;
     } catch (error) {
-        console.log("プレイソング全体のシステムエラー")
         console.error(error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でエラーが発生しました\n\`\`\`${error}\`\`\``);
-        cleanupQueue(guildId);
+        serverQueue.retryCount = serverQueue.retryCount || 0;
+        serverQueue.retryCount++;
+        if (serverQueue.retryCount > 8) return
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        return playSong(guildId, serverQueue.songs[0]);
     }
 }
 
