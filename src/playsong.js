@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
 const play = require('play-dl'); // 有志の方が作成したテスト版をyuyuttiがフォークしたものを使用
-const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
+const ytdl = require('@distube/ytdl-core');
 
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static'); 
@@ -43,7 +43,10 @@ async function playSong(guildId, song) {
     clearInterval(serverQueue.time.interval);
     clearInterval(serverQueue.trafficLogInterval);
     serverQueue.time.interval = null;
-    if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
+    if (serverQueue.ffmpegProcess) {
+        serverQueue.ffmpegProcess.kill('SIGKILL');
+        serverQueue.ffmpegProcess = null;
+    }
 
     updateActivity();
     updatePlayingGuild();
@@ -299,10 +302,10 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
         serverQueue.ffmpegProcess = null;
     }
-    if (serverQueue.Throttle) {
-        serverQueue.Throttle.end();
-        serverQueue.Throttle = null;
-    }
+    // if (serverQueue.Throttle) {
+    //     serverQueue.Throttle.end();
+    //     serverQueue.Throttle = null;
+    // }
 
     const seekPosition = serverQueue.time.current;
     let YT_lastLoggedBytes = 0;
@@ -389,11 +392,8 @@ async function prepareAndPlayStream(serverQueue, guildId) {
     ffmpegProcess();
 
     serverQueue.retryCount = null;
-
-    const throttleRate = 1024 * 1024 / 8; // 1024kbps
-    serverQueue.Throttle = new Throttle({ rate: throttleRate });
     
-    const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
+    const ffmpegStream = serverQueue.ffmpegProcess.pipe();
     
     serverQueue.resource = createAudioResource(ffmpegStream, {
         inputType: StreamType.WebmOpus,

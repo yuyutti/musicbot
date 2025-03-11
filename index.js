@@ -210,7 +210,7 @@ client.on('voiceStateUpdate', async(oldState, newState) => {
     const oldVoiceChannel = oldState.channel;
     const newVoiceChannel = newState.channel;
 
-    try { // 2回目以降の移動で不具合
+    try {
         if (newVoiceChannel && newVoiceChannel.members.has(client.user.id)) {
             if (newState.member.user.id !== client.user.id) return;
             if (processingFlags.has(guildId)) return;
