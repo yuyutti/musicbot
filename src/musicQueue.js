@@ -1,6 +1,6 @@
 const { createAudioPlayer, NoSubscriberBehavior } = require('@discordjs/voice');
 const { commandStatus } = require('../events/event');
-const { volume, lang, removeWord } = require('../SQL/lockup');
+const { volume, lang, removeWord, filter } = require('../SQL/lockup');
 
 const queue = new Map();
 
@@ -15,6 +15,7 @@ async function CreateServerQueue(guildId, voiceChannel, textChannel) {
         guildId: guildId,
         language: await lang(guildId) || 'en',
         removeWord: await removeWord(guildId) || false,
+        filter: await filter(guildId) || 'auto',
         loop: false,
         autoPlay: false,
         pause: false,

@@ -96,4 +96,27 @@ async function LogChannel(guildId) {
     }
 }
 
-module.exports = { volume, lang, removeWord, LogChannel };
+async function filter(guildId) {
+    const errorChannel = getErrorChannel();
+
+    // オフラインモードの場合、デフォルト値を返す
+    if (isOfflineMode()) {
+        return 'auto'; // デフォルト値
+    }
+
+    const query = 'SELECT filter FROM guild_settings WHERE guild_id = ?';
+    try {
+        const [rows] = await connection.execute(query, [guildId]);
+        if (rows.length > 0) {
+            return rows[0].filter;
+        } else {
+            return 'auto'; // デフォルト値
+        }
+    } catch (error) {
+        console.error('Failed to get filter:', error);
+        errorChannel.send(`Failed to get filter: \n\`\`\`${error}\`\`\``);
+        return 'auto'; // エラー時もデフォルト値
+    }
+} 
+
+module.exports = { volume, lang, removeWord, LogChannel, filter };

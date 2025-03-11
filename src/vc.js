@@ -1,5 +1,5 @@
 const { PermissionsBitField } = require('discord.js');
-const { joinVoiceChannel } = require('@discordjs/voice');
+const { joinVoiceChannel, getVoiceConnection } = require('@discordjs/voice');
 const language = require('../lang/commands/play');
 const { queue: musicQueue } = require('./musicQueue');
 
@@ -32,12 +32,18 @@ function checkPermissions(permissions, interactionOrMessage, lang) {
 
 function joinVC(guildId) {
     const serverQueue = musicQueue.get(guildId);
-
-    serverQueue.connection = joinVoiceChannel({
-        channelId: serverQueue.voiceChannel.id,
-        guildId,
-        adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
-    });
+    const connection = getVoiceConnection(guildId);
+    if (connection) {
+        console.log("BOTは既にVCに接続しています");
+    }
+    else {
+        console.log("BOTはVCに接続していません。新しく接続します");
+        serverQueue.connection = joinVoiceChannel({
+            channelId: serverQueue.voiceChannel.id,
+            guildId,
+            adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
+        });
+    }
 }
 
 async function reconnectVC() {

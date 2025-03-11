@@ -22,10 +22,25 @@ async function createTable() {
                 volume INT NOT NULL DEFAULT 10 CHECK (volume >= 0 AND volume <= 100),
                 lang ENUM('en', 'ja') NOT NULL DEFAULT 'en',
                 removeWord TINYINT NOT NULL DEFAULT 0,
-                LogChannel VARCHAR(255) DEFAULT NULL
+                LogChannel VARCHAR(255) DEFAULT NULL,
+                filter VARCHAR(255) NOT NULL DEFAULT 'auto'
             )
         `;
+
+        const alterTableQueries = [];
+
         await connection.execute(createTableQuery);
+
+        for (const query of alterTableQueries) {
+            try {
+                await connection.execute(query);
+                console.log(`Altered table: ${query}`);
+            } catch (alterError) {
+                if (alterError.code !== 'ER_DUP_FIELDNAME') {
+                    throw alterError;
+                }
+            }
+        }
         console.log('Database connection successful');
     }
     catch (error) {

@@ -4,7 +4,7 @@ const path = require('path');
 
 const { queue: musicQueue } = require('./musicQueue');
 const { commandStatus } = require('../events/event');
-const { volume, lang, removeWord } = require('../SQL/lockup');
+const { volume, lang, removeWord, filter } = require('../SQL/lockup');
 
 const { playSong } = require('./playsong');
 const queueFilePath = path.join(__dirname, '..','serverQueue.json');
@@ -51,6 +51,7 @@ const loadQueueFromFile = async (client) => {
                 guildId: value.guildId,
                 language: await lang(value.guildId) || 'en',
                 removeWord: await removeWord(value.guildId) || false,
+                filter: await filter(value.guildId) || 'auto',
                 loop: value.loop,
                 autoPlay: value.autoPlay,
                 pause: value.pause,
