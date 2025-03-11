@@ -70,7 +70,7 @@ async function playSong(guildId, song) {
         await pauseTimeout(serverQueue, guildId);
         serverQueue.retryCount = 0;
     } catch (error) {
-        if (serverQueue.retryCount < 3) {
+        if (serverQueue.retryCount < 10) {
             serverQueue.retryCount++;
             console.warn(`⚠️ リトライ ${serverQueue.retryCount}/3 回目`);
             loggerChannel.send(`playing: リトライ ${serverQueue.retryCount}/3 回目 **${serverQueue.voiceChannel.guild.name}**で**${serverQueue.songs[0].title}**を再取得します。`);
@@ -85,7 +85,7 @@ async function playSong(guildId, song) {
         }
         console.error('playSong global error:', error);
         errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
-        cleanupQueue(guildId);
+        handleStreamError(serverQueue, false);
     }
 }
 
@@ -386,7 +386,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             if (error.message.includes('Output stream error: Premature close')) return;
             if (error.message.includes('403')) {
                 getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で${serverQueue.songs[0].title}を再取得します。 理由: 403エラー`);
-                if (serverQueue.retryCount > 5) {
+                if (serverQueue.retryCount > 10) {
                     return handleStreamError(serverQueue, false);
                 }
                 serverQueue.retryCount++;
@@ -397,7 +397,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             else {
                 console.error('FFmpeg error:', error);
                 getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
-                if (serverQueue.retryCount > 3) {
+                if (serverQueue.retryCount > 10) {
                     handleStreamError(serverQueue, false);
                 }
                 else {
@@ -457,7 +457,7 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             console.error('FFmpeg stream error:', error);
             getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
         
-            if (serverQueue.retryCount > 5) {
+            if (serverQueue.retryCount > 10) {
                 return handleStreamError(serverQueue, false);
             }
             serverQueue.playingErrorFlag = true;
