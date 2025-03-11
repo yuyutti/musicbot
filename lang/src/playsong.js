@@ -35,6 +35,10 @@ const lang = {
         en: 'Status'
     },
     Fields5_name: {
+        ja: "フィルター",
+        en: "Filter"
+    },
+    Fields6_name: {
         ja: 'リクエストユーザー',
         en: 'RequestBy'
     },
