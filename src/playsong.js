@@ -43,9 +43,17 @@ async function playSong(guildId, song) {
     clearInterval(serverQueue.time.interval);
     clearInterval(serverQueue.trafficLogInterval);
     serverQueue.time.interval = null;
+    serverQueue.playingErrorFlag = false;
+    serverQueue.retryCount = serverQueue.retryCount || 0; 
+
     if (serverQueue.ffmpegProcess) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
         serverQueue.ffmpegProcess = null;
+    }
+
+    if (serverQueue.stream) {
+        serverQueue.stream.destroy();
+        serverQueue.stream = null;
     }
 
     updateActivity();
@@ -55,25 +63,29 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        const isPlaying =  await getStream(serverQueue, song);
-        if (!isPlaying) return
+        const isPlaying = await getStream(serverQueue, song);
+        if (!isPlaying) return;
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
-        serverQueue.retryCount = null;
+        serverQueue.retryCount = 0;
     } catch (error) {
-        if (error.message.includes("Only one output stream is supported")) {
-            serverQueue.retryCount = serverQueue.retryCount || 0;
+        if (serverQueue.retryCount < 3) {
             serverQueue.retryCount++;
-            if (serverQueue.retryCount > 8) return handleStreamError(serverQueue, false);
+            console.warn(`⚠️ リトライ ${serverQueue.retryCount}/3 回目`);
+            loggerChannel.send(`playing: リトライ ${serverQueue.retryCount}/3 回目 **${serverQueue.voiceChannel.guild.name}**で**${serverQueue.songs[0].title}**を再取得します。`);
+
             await new Promise(resolve => setTimeout(resolve, 2000));
             return playSong(guildId, serverQueue.songs[0]);
+        } else {
+            console.error("🚨 リトライ回数が上限に達しました。ストリームを停止します。");
+            loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}** でリトライ上限に達しました。ストリームを停止します。`);
+            serverQueue.retryCount = 0;
+            handleStreamError(serverQueue, false);
         }
-        else {
-            console.error(error);
-            errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
-            cleanupQueue(guildId);
-        }
+        console.error('playSong global error:', error);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+        cleanupQueue(guildId);
     }
 }
 
@@ -186,7 +198,9 @@ function handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, logger
 async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song) {
     serverQueue.audioPlayer.on('stateChange', async (oldState, newState) => {
         if (newState.status === AudioPlayerStatus.Idle) {
-            if (serverQueue.time.current === serverQueue.time.end) {
+            console.log(`AudioPlayerStatus.Idle: ${serverQueue.time.current} / ${serverQueue.time.end}`);
+            if (serverQueue.time.current === 0) return;
+            if (Math.abs(serverQueue.time.current - serverQueue.time.end) <= 1) {
                 handleIdleState(serverQueue, guildId);
                 clearInterval(serverQueue.time.interval);
                 clearInterval(serverQueue.trafficLogInterval);
@@ -205,6 +219,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
         }
         else if (newState.status === AudioPlayerStatus.Playing) {
             if (serverQueue.time.interval) return;
+            if (serverQueue.playingErrorFlag) return;
             serverQueue.time.start = Date.now() - (serverQueue.time.current * 1000);
             serverQueue.time.end = song.duration;
             serverQueue.time.interval = setInterval(() => {
@@ -224,7 +239,6 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
 }
 
 async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
-
     loggerChannel.send(`playing: ${serverQueue.itag} / **${serverQueue.voiceChannel.guild.name}**で**${song.title}**の再生を開始しました`);
     const buttons = createControlButtons();
     await serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
@@ -233,9 +247,11 @@ async function handlePlayingState(serverQueue, loggerChannel, guildId, song) {
 function handleIdleState(serverQueue, guildId) {
     if (serverQueue.loop) {
         playSong(guildId, serverQueue.songs[0]);
-    } else if (serverQueue.autoPlay) {
+    }
+    else if (serverQueue.autoPlay) {
         handleAutoPlay(serverQueue, guildId);
-    } else {
+    }
+    else {
         serverQueue.songs.shift();
         serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
     }
@@ -302,10 +318,6 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         serverQueue.ffmpegProcess.kill('SIGKILL');
         serverQueue.ffmpegProcess = null;
     }
-    // if (serverQueue.Throttle) {
-    //     serverQueue.Throttle.end();
-    //     serverQueue.Throttle = null;
-    // }
 
     const seekPosition = serverQueue.time.current;
     let YT_lastLoggedBytes = 0;
@@ -338,22 +350,22 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             .find(f => vcSize <= f.minVCSize);
     } else {
         serverQueue.filter = filter.find(f => f.value === currentFilter);
-        serverQueue.filter.auto = false;
-    }
-
-    if (!serverQueue.filter) {
-        serverQueue.filter = filter
-            .filter(f => f.auto)
-            .sort((a, b) => a.minVCSize - b.minVCSize)
-            .find(f => vcSize <= f.minVCSize);
+        if (!serverQueue.filter) {
+            serverQueue.filter = filter
+                .filter(f => f.auto)
+                .sort((a, b) => a.minVCSize - b.minVCSize)
+                .find(f => vcSize <= f.minVCSize);
+        }
+        else {
+            serverQueue.filter.auto = false;
+        }
     }
 
     console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
-    serverQueue.retryCount = serverQueue.retryCount || 0;
     serverQueue.Filter = serverQueue.filter;
-    const ffmpegProcess = async () => {
-        serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
+
+    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
         .setStartTime(seekPosition)
         .noVideo()
         .audioFilters(serverQueue.filter.filter)
@@ -373,25 +385,31 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             if (error.message.includes('SIGKILL')) return;
             if (error.message.includes('Output stream error: Premature close')) return;
             if (error.message.includes('403')) {
-                serverQueue.retryCount++;
-                getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で${serverQueue.songs[0].title}を再取得します。`);
-                if (serverQueue.retryCount > 8) {
+                getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で${serverQueue.songs[0].title}を再取得します。 理由: 403エラー`);
+                if (serverQueue.retryCount > 5) {
                     return handleStreamError(serverQueue, false);
                 }
+                serverQueue.retryCount++;
+                serverQueue.playingErrorFlag = true;
                 await new Promise(resolve => setTimeout(resolve, 2000));
                 return playSong(guildId, serverQueue.songs[0]);
             }
             else {
                 console.error('FFmpeg error:', error);
                 getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
-                handleIdleState(serverQueue, guildId);
+                if (serverQueue.retryCount > 3) {
+                    handleStreamError(serverQueue, false);
+                }
+                else {
+                    serverQueue.retryCount++;
+                    serverQueue.playingErrorFlag = true;
+                    getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で**${serverQueue.songs[0].title}**を再取得します。 理由: FFmpegエラー`);
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                    return playSong(guildId, serverQueue.songs[0]);
+                }
             }
-        });
-    }
-
-    ffmpegProcess();
-
-    serverQueue.retryCount = null;
+        }
+    );
     
     const ffmpegStream = serverQueue.ffmpegProcess.pipe();
     
@@ -434,14 +452,35 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
         });
         
-        ffmpegStream.on('error', (error) => {
+        ffmpegStream.on('error', async (error) => {
             if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
             console.error('FFmpeg stream error:', error);
             getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
-            reject(error);
+        
+            if (serverQueue.retryCount > 5) {
+                return handleStreamError(serverQueue, false);
+            }
+            serverQueue.playingErrorFlag = true;
+            serverQueue.retryCount++;
+            getLoggerChannel().send(`playing: retry ${serverQueue.retryCount} / **${serverQueue.voiceChannel.guild.name}**で**${serverQueue.songs[0].title}**を再取得します。  理由: FFmpeg streamエラー`);
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            try {
+                await playSong(guildId, serverQueue.songs[0]);
+            } catch (playError) {
+                console.error('Retrying playSong failed:', playError);
+                reject(playError);
+            }
+        });        
+
+        ffmpegStream.on('close', () => {
+            resolve();
         });
-        ffmpegStream
+
+        ffmpegStream.on('end', () => {
+            resolve();
+        });
     });
+    serverQueue.retryCount = 0;
 
     setupCommandStatusListeners(serverQueue, guildId);
     serverQueue.audioPlayer.play(serverQueue.resource);
