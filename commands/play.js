@@ -55,8 +55,14 @@ module.exports = {
                 const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
                 if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
             }
-            
-            const stringType = await playdl.validate(songString);
+            let stringType;
+            try {
+                stringType = await playdl.validate(songString);
+            }
+            catch (error) {
+                stringType = "so";
+            }
+            console.log('stringType:', stringType);
             if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
             
             const { addedCount, songs, name } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
