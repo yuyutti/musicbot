@@ -70,6 +70,9 @@ class WorkerPool {
                 worker.removeAllListeners('error');
     
                 worker.on('message', (result) => {
+                    if(result.content) {
+                        return data.interactionOrMessage.reply({ content: result.content, ephemeral: result.ephemeral });
+                    }
                     resolve(result);
                     this.pool.push(worker);
                 });
@@ -109,40 +112,40 @@ if (isMainThread) {
 }
 else {
     (async () => {
-        async function handleSongType(stringType, songString, userId, lang, interactionOrMessage) {
+        async function handleSongType(stringType, songString, userId, lang) {
 
             let songs = [];
             let name = "";
             switch (stringType) {
                 case "yt_video":
-                    songs = await addYouTubeVideo(songString, userId, interactionOrMessage, lang);
+                    songs = await addYouTubeVideo(songString, userId, lang);
                     break;
                 case "yt_playlist":
                     songs = await addYouTubePlaylist(songString, userId, lang);
                     break;
                 case "search":
-                    songs = await addSearchResult(songString, userId, interactionOrMessage, lang);
+                    songs = await addSearchResult(songString, userId, lang);
                     break;
                 case "sp_track":
-                    songs = await addSpotifyTrack(songString, userId, interactionOrMessage, lang);
+                    songs = await addSpotifyTrack(songString, userId, lang);
                     break;
                 case "sp_album":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang));
+                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
                     break;
                 case "sp_playlist":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, interactionOrMessage, lang));
+                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
                     break;
                 case false:
-                    await interactionOrMessage.reply({ content: language.unLink[lang], ephemeral: true });
+                    parentPort.postMessage({ content: language.unLink[lang], ephemeral: true });
                     break;
                 default:
-                    await interactionOrMessage.reply({ content: language.notSupportService[lang], ephemeral: true });
+                    parentPort.postMessage({ content: language.notSupportService[lang], ephemeral: true });
                     break;
             }
             return { addedCount: songs.length, songs, name };
         }
 
-        async function addYouTubeVideo(songString, userId, interactionOrMessage, lang) {
+        async function addYouTubeVideo(songString, userId, lang) {
             try {
                 // const videoInfo = await playdl.video_basic_info(songString);
                 const videoInfo = await ytdl.getBasicInfo(songString);
@@ -153,7 +156,7 @@ else {
                     requestBy: userId
                 }];
             } catch {
-                await interactionOrMessage.reply({ content: language.notFoundVoiceChannel[lang], ephemeral: true });
+                parentPort.postMessage({ content: language.notFoundVoiceChannel[lang], ephemeral: true });
                 return 0;
             }
         }
@@ -168,7 +171,7 @@ else {
             }));
         }
 
-        async function addSearchResult(songString, userId, interactionOrMessage, lang) {
+        async function addSearchResult(songString, userId, lang) {
             const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1, language: lang });
             if (searchResult.length > 0) {
                 const video = searchResult[0];
@@ -180,12 +183,12 @@ else {
                 }];
             }
             else {
-                await interactionOrMessage.reply({ content: language.notHit[lang], ephemeral: true });
+                parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
                 return 0;
             }
         }
 
-        async function addSpotifyTrack(songString, userId, interactionOrMessage, lang) {
+        async function addSpotifyTrack(songString, userId, lang) {
             const sp_track = await playdl.spotify(songString);
             const trackName = sp_track.name;
             const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: lang });
@@ -199,12 +202,12 @@ else {
                 }];
             }
             else {
-                await interactionOrMessage.reply({ content: language.notHit[lang], ephemeral: true });
+                parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
                 return 0;
             }
         }
 
-        async function addSpotifyTrackListToQueue(songString, userId, lang, interactionOrMessage) {
+        async function addSpotifyTrackListToQueue(songString, userId, lang) {
             const result = await playdl.spotify(songString);
             const name = result.name;
             const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";
@@ -251,7 +254,7 @@ else {
                     songs.push(...validTracks);
                     return { name, songs };
                 } else {
-                    await interactionOrMessage.reply({ content: language.aNotHit[lang](firstTrackName), ephemeral: true });
+                    parentPort.postMessage({ content: language.aNotHit[lang](firstTrackName), ephemeral: true });
                     return { name, songs: [] };
                 }
             }
