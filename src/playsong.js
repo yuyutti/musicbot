@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
+const { Throttle } = require('stream-throttle');
 const ytdl = require('@distube/ytdl-core');
 
 const ffmpeg = require('fluent-ffmpeg');
@@ -380,7 +381,10 @@ async function prepareAndPlayStream(serverQueue, guildId) {
         }
     );
     
-    const ffmpegStream = serverQueue.ffmpegProcess.pipe();
+    const throttleRate = 320 * 1024 / 8; // 320kbps
+    serverQueue.Throttle = new Throttle({ rate: throttleRate });
+
+    const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
     
     serverQueue.resource = createAudioResource(ffmpegStream, {
         inputType: StreamType.WebmOpus,
