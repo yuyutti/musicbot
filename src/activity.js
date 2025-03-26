@@ -3,12 +3,15 @@ const { isOfflineMode } = require('../SQL/connection');
 
 
 let clientInstant = null
-
+process.env.IsMaintenance = true;
 function setClientInstant(client) {
     clientInstant = client
-    // client.user.setPresence({ // メンテナンスモード,
-    //     status: 'idle',
-    // });
+
+    if (process.env.IsMaintenance === 'true') {
+        client.user.setPresence({ // メンテナンスモード,
+            status: 'idle',
+        });
+    }
 }
 
 async function shutdownActivity() {
@@ -34,6 +37,12 @@ async function updateActivity() {
 
     // アクティビティの切り替え
     let activityMessage;
+
+    if(process.env.IsMaintenance === 'true') {
+        activityMessage = `Bot is in Maintenance Mode | ${serverCount} Servers`;
+        return clientInstant.user.setActivity(activityMessage);
+    }
+
     if (activityToggle % 20 < 10) { // 前半5回はサーバー数
         activityMessage = `!help | ${voiceCount}VC ${serverCount} Servers`;
     } else { // 後半5回はユーザー数

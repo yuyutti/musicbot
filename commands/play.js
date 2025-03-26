@@ -38,7 +38,9 @@ module.exports = {
         const errorChannel = getErrorChannel();
 
         // メンテナンスモード
-        // return interactionOrMessage.reply(language.maintenanceMode[lang]);
+        if (process.env.IsMaintenance === 'true') {
+            return interactionOrMessage.reply(language.maintenanceMode[lang]);
+        }
 
         try {
             const { songString, voiceChannel, userId } = parseInteractionOrMessage(interactionOrMessage, args);
