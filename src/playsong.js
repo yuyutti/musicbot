@@ -67,13 +67,14 @@ async function playSong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
-    for (let attempt = 1; attempt <= retries; attempt++) {
+async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
+    let attemptCount = 0;
+    while (attemptCount < retries) {
         try {
-            console.log(`Playing song (Attempt ${attempt}): ${song.title}`);
+            attemptCount++;
+            console.log(`Playing song (Attempt ${attemptCount}): ${song.title}`);
 
             const itags = [251, 250, 18, 249, 93, 94, 92, 91, 140];
-            // serverQueue.stream = await play.stream(song.url, streamOptions);
             const info = await ytdl.getInfo(song.url);
             const formats = info.formats;
 
@@ -82,27 +83,31 @@ async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
                 serverQueue.itag = itag;
                 if (format) {
                     if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75, });
-                    }
-                    else {
+                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
+                    } else {
                         serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28 });
                     }
                     return true;
                 }
             }
+
             serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
             return true;
         } catch (error) {
-            if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
-            if (attempt === retries) {
-                const errorChannel = getErrorChannel(serverQueue);
+            console.error(`Error while fetching stream for ${song.title}: ${error.message}`);
+            if (error.message.includes('Sign in to confirm your age')) {
+                await handleStreamError(serverQueue, true);
+                return; // Immediately return as the stream cannot be fetched due to age restriction
+            }
+
+            if (attemptCount === retries) {
+                // Maximum retries reached, notify error and exit
+                const errorChannel = getErrorChannel();
                 if (errorChannel) {
-                    errorChannel.send(
-                        `**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error}\`\`\``
-                    );
+                    errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error.message}\`\`\``);
                 }
                 await handleStreamError(serverQueue, false);
-                throw error;
+                return false;
             }
 
             await new Promise(resolve => setTimeout(resolve, delayMs));
@@ -110,45 +115,28 @@ async function getStream(serverQueue, song, retries = 1, delayMs = 1500) {
     }
 }
 
-async function handleStreamError(serverQueue, isAgeRestricted, retries = 3, delayMs = 3000) {
+async function handleStreamError(serverQueue, isAgeRestricted) {
     const guildId = serverQueue.guildId;
-    let message
+    let message;
 
     if (isAgeRestricted) {
         if (serverQueue.songs.length > 1) {
             message = language.ageToNext[serverQueue.language](serverQueue.songs[0].title);
+        } else {
+            message = language.ageToEnd[serverQueue.language](serverQueue.songs[0].title);
         }
-        else message = language.ageToEnd[serverQueue.language](serverQueue.songs[0].title);
+    } else if (serverQueue.songs.length > 1) {
+        message = language.streamErrorToNext[serverQueue.language](serverQueue.songs[0].title);
+    } else {
+        message = language.streamErrorToEnd[serverQueue.language](serverQueue.songs[0].title);
     }
 
-    else if (serverQueue.songs.length > 1) {
-        message = language.streamErrorToNext[serverQueue.language](serverQueue.songs[0].title);
-    }
-    else message = language.streamErrorToEnd[serverQueue.language](serverQueue.songs[0].title);
-    
     try {
         await serverQueue.playingMessage.edit(message);
-    }
-    catch (error) {
+    } catch (error) {
         await serverQueue.textChannel.send(message);
     }
 
-    for (let attempt = 1; attempt <= retries; attempt++) {
-        try {
-            getLoggerChannel().send(`playing: ${attempt}/${retries} - **${serverQueue.voiceChannel.guild.name}** handleStreamErrorによる **${serverQueue.songs[0].title}**の再試行を行っています`);
-            await playSong(guildId, serverQueue.songs[0]);
-            return;
-        }
-        catch (error) {
-            if (attempt === retries) {
-                console.error('handleStreamError error:', error);
-                getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でhandleStreamErrorエラーが発生しました\n\`\`\`${error}\`\`\``);
-                cleanupQueue(guildId);
-                return;
-            }
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
     serverQueue.songs.shift();
     serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
     return false;
