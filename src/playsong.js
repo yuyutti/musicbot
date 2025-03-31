@@ -2,7 +2,7 @@ const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
 const ytdl = require('@distube/ytdl-core');
-
+const fs = require('fs');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static'); 
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -22,6 +22,89 @@ const { getLoggerChannel, getErrorChannel } = require('./log');
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return await cleanupQueue(guildId);
+
+    if (serverQueue._currentlyTryingToPlay) {
+        console.log(`[playSong] 多重再生防止: ${song.title}`);
+        return;
+    }
+    serverQueue._currentlyTryingToPlay = true;
+
+    const loggerChannel = getLoggerChannel();
+    const errorChannel = getErrorChannel();
+
+    const voiceStatusFlags = {
+        Connecting: false,
+        Ready: false,
+        Destroyed: false,
+        Disconnected: false
+    };
+
+    joinVC(guildId);
+    serverQueue.streamIsAge = false;
+    serverQueue.connection.removeAllListeners();
+    serverQueue.audioPlayer.removeAllListeners();
+    serverQueue.commandStatus.removeAllListeners();
+    cleanupButtons(guildId);
+    clearInterval(serverQueue.time.interval);
+    clearInterval(serverQueue.trafficLogInterval);
+    serverQueue.time.interval = null;
+    serverQueue.itag = null;
+    delete serverQueue.playSongRetryCount;
+
+    if (serverQueue.ffmpegProcess) {
+        serverQueue.ffmpegProcess.kill('SIGKILL');
+        serverQueue.ffmpegProcess = null;
+    }
+
+    updateActivity();
+    updatePlayingGuild();
+
+    handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId);
+    handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
+
+    try {
+        const isPlaying = await getStream(serverQueue, song);
+        if (!isPlaying) {
+            delete serverQueue._currentlyTryingToPlay;
+            return;
+        }
+        await sendPlayingMessage(serverQueue);
+        await prepareAndPlayStream(serverQueue, guildId);
+        await pauseTimeout(serverQueue, guildId);
+        delete serverQueue._currentlyTryingToPlay;
+    } catch (error) {
+        if (error.message.includes('Invalid input')) {
+            rePlaySong(guildId, song);
+            return;
+        }
+        console.error('playSong global error:', error);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+        handleStreamError(serverQueue, false);
+    }
+}
+
+async function rePlaySong(guildId, song) {
+    await new Promise(resolve => setTimeout(resolve, 5000));
+
+    const serverQueue = musicQueue.get(guildId);
+    if (!song || !serverQueue) return await cleanupQueue(guildId);
+
+    if (serverQueue._currentlyTryingToPlay) {
+        console.log(`[rePlaySong] 多重再生防止: ${song.title}`);
+        return;
+    }
+    serverQueue._currentlyTryingToPlay = true;
+
+    if (!serverQueue.playSongRetryCount) serverQueue.playSongRetryCount = 1;
+    else serverQueue.playSongRetryCount++;
+
+    if (serverQueue.playSongRetryCount > 3) {
+        delete serverQueue.playSongRetryCount;
+        serverQueue.songs.shift();
+        serverQueue.time.current = 0;
+        serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
+        return;
+    }
 
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
@@ -56,13 +139,22 @@ async function playSong(guildId, song) {
 
     try {
         const isPlaying = await getStream(serverQueue, song);
-        if (!isPlaying) return;
+        if (!isPlaying) {
+            delete serverQueue._currentlyTryingToPlay;
+            return;
+        }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
+        delete serverQueue._currentlyTryingToPlay;
+        delete serverQueue.playSongRetryCount;
     } catch (error) {
+        if (error.message.includes('Invalid input')) {
+            rePlaySong(guildId, song);
+            return;
+        }
         console.error('playSong global error:', error);
-        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でrePlaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
         handleStreamError(serverQueue, false);
     }
 }
@@ -74,20 +166,33 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
             attemptCount++;
             console.log(`Playing song (Attempt ${attemptCount}): ${song.title}`);
 
-            const itags = [251, 250, 18, 249, 93, 94, 92, 91, 140];
+            const defaultItagList = [18, 140, 160, 242, 243, 244, 249, 250, 251 ];
+            if (!serverQueue.itagList || serverQueue.itagList.length === 0) {
+                serverQueue.itagList = [...defaultItagList];
+            }
+            
             const info = await ytdl.getInfo(song.url);
             const formats = info.formats;
-
-            for (const itag of itags) {
-                const format = formats.find(f => f.itag === itag);
+            
+            while (serverQueue.itagList.length > 0) {
+                const itag = serverQueue.itagList[0];
                 serverQueue.itag = itag;
-                if (format) {
-                    if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
-                    } else {
-                        serverQueue.stream = ytdl(song.url, { quality: itag, highWaterMark: 1 << 28 });
-                    }
+                console.log(`itag: ${itag}`);
+            
+                const format = formats.find(f => f.itag === itag);
+                if (!format) continue;
+            
+                try {
+                    serverQueue.stream = ytdl(song.url, {
+                        quality: itag,
+                        highWaterMark: 1 << 28,
+                        dlChunkSize: serverQueue.LiveItag.includes(itag) ? 1024 * 1024 * 75 : undefined
+                    });
+                    serverQueue.itagList = [...defaultItagList];
                     return true;
+                } catch (err) {
+                    console.warn(`itag ${itag} の stream に失敗しました: ${err.message}`);
+                    continue;
                 }
             }
 
@@ -97,11 +202,10 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
             console.error(`Error while fetching stream for ${song.title}: ${error.message}`);
             if (error.message.includes('Sign in to confirm your age')) {
                 await handleStreamError(serverQueue, true);
-                return; // Immediately return as the stream cannot be fetched due to age restriction
+                return;
             }
 
             if (attemptCount === retries) {
-                // Maximum retries reached, notify error and exit
                 const errorChannel = getErrorChannel();
                 if (errorChannel) {
                     errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error.message}\`\`\``);
@@ -181,6 +285,13 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
         if (newState.status === AudioPlayerStatus.Idle) {
             console.log(`AudioPlayerStatus.Idle: ${serverQueue.time.current} / ${serverQueue.time.end}`);
             if (serverQueue.time.current === 0) return;
+            if (serverQueue.playSongRetryCount) {
+                clearInterval(serverQueue.time.interval);
+                clearInterval(serverQueue.trafficLogInterval);
+                serverQueue.time.interval = null;
+                serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+                return;
+            }
             if (Math.abs(serverQueue.time.current - serverQueue.time.end) <= 1) {
                 handleIdleState(serverQueue, guildId);
                 clearInterval(serverQueue.time.interval);
@@ -364,6 +475,25 @@ async function prepareAndPlayStream(serverQueue, guildId) {
             if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
             if (error.message.includes('SIGKILL')) return;
             if (error.message.includes('Output stream error: Premature close')) return;
+            if (error.message.includes('Status code: 403')) {
+                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+                return;
+            }
+            if (error.message.includes('ffmpeg exited with code 1')) {
+                serverQueue.itagList.shift();
+                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+                return;
+            }
+            if (error.message.includes('No such format found')) {
+                serverQueue.itagList.shift();
+                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+                return;
+            }
+            if (error.message.includes('ECONNRESET')) {
+                serverQueue.itagList.shift();
+                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+                return;
+            }
             console.error('FFmpeg error:', error);
             getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
         }

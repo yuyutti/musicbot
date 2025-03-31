@@ -10,3 +10,6 @@ node_modules/
 /data/use.json
 .data
 serverQueue.json
+
+# test files
+itagtest.js

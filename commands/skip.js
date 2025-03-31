@@ -73,7 +73,11 @@ module.exports = {
         serverQueue.songs.splice(0, skipCount);
     
         // 次の曲への移行
-        serverQueue.ffmpegProcess.kill('SIGKILL');
+        if (serverQueue.ffmpegProcess) {
+            serverQueue.ffmpegProcess.kill('SIGKILL');
+            serverQueue.ffmpegProcess = null;
+        }
+        delete serverQueue._currentlyTryingToPlay;
         playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
         clearInterval(serverQueue.time.interval);
         serverQueue.time.interval = null;
