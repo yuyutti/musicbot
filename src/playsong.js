@@ -166,9 +166,14 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
             attemptCount++;
             console.log(`Playing song (Attempt ${attemptCount}): ${song.title}`);
 
-            const defaultItagList = [18, 140, 160, 242, 243, 244, 249, 250, 251 ];
-            if (!serverQueue.itagList || serverQueue.itagList.length === 0) {
+            // const defaultItagList = [ 18, 250, 251, 140, 249 ];
+            const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
+            if (!serverQueue.itagList) {
                 serverQueue.itagList = [...defaultItagList];
+            }
+            if (serverQueue.itagList.length === 0) {
+                await handleStreamError(serverQueue, false);
+                return false;
             }
             
             const info = await ytdl.getInfo(song.url);
@@ -180,7 +185,10 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
                 console.log(`itag: ${itag}`);
             
                 const format = formats.find(f => f.itag === itag);
-                if (!format) continue;
+                if (!format) {
+                    serverQueue.itagList.shift();
+                    continue;
+                }
             
                 try {
                     serverQueue.stream = ytdl(song.url, {
@@ -192,6 +200,7 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
                     return true;
                 } catch (err) {
                     console.warn(`itag ${itag} の stream に失敗しました: ${err.message}`);
+                    serverQueue.itagList.shift();
                     continue;
                 }
             }
