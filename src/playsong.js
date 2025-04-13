@@ -3,6 +3,7 @@ const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamTyp
 const { Throttle } = require('stream-throttle');
 const ytdl = require('@distube/ytdl-core');
 const fs = require('fs');
+const path = require('path');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static'); 
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -18,6 +19,11 @@ const { joinVC } = require('./vc');
 const filter = require('./filter');
 
 const { getLoggerChannel, getErrorChannel } = require('./log');
+
+const cookiePath = path.join(__dirname, "..", ".data", ".yt.cookie.json");
+const cookies = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
+
+const agent = ytdl.createAgent(cookies);
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
@@ -176,7 +182,7 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
                 return false;
             }
             
-            const info = await ytdl.getInfo(song.url);
+            const info = await ytdl.getInfo(song.url, { agent } );
             const formats = info.formats;
             
             while (serverQueue.itagList.length > 0) {
@@ -192,6 +198,7 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
             
                 try {
                     serverQueue.stream = ytdl(song.url, {
+                        agent,
                         quality: itag,
                         highWaterMark: 1 << 28,
                         dlChunkSize: serverQueue.LiveItag.includes(itag) ? 1024 * 1024 * 75 : undefined
@@ -205,7 +212,7 @@ async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
                 }
             }
 
-            serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
+            serverQueue.stream = ytdl(song.url, { agent, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
             return true;
         } catch (error) {
             console.error(`Error while fetching stream for ${song.title}: ${error.message}`);
