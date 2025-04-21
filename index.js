@@ -2,7 +2,6 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-
 const { createTable, isOfflineMode } = require('./SQL/connection');
 const { updateVolume, updateLang, updateRemoveWord, updateLogChannel } = require('./SQL/setdata');
 const { removeData } = require('./SQL/removedata');
