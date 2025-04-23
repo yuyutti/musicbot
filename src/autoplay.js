@@ -2,18 +2,24 @@ const playdl = require('play-dl');
 const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 const { queue: musicQueue } = require('./musicQueue');
 const { getLoggerChannel, getErrorChannel } = require('./log');
+const proxyManager = require('./proxymanager');
 
 async function autoplay (guildId) {
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
     try {
         const serverQueue = musicQueue.get(guildId);
+        const proxy = proxyManager.getProxy();
+        let agent = null;
+        if (proxy) {
+            agent = ytdl.createProxyAgent( { uri: proxy } );
+        }
         // const videoInfo = await playdl.video_basic_info(serverQueue.songs[0].url);
-        const videoInfo = await ytdl.getBasicInfo(serverQueue.songs[0].url);
+        const videoInfo = await ytdl.getBasicInfo(serverQueue.songs[0].url, { agent });
         const relatedVideos = videoInfo.related_videos;
         const randomIndex = Math.floor(Math.random() * relatedVideos.length);
         // const NextPlayingVideoInfo = await playdl.video_basic_info(relatedVideos[randomIndex]);
-        const NextPlayingVideoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${relatedVideos[randomIndex].id}`);
+        const NextPlayingVideoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${relatedVideos[randomIndex].id}`, { agent });
         serverQueue.songs.push(
             {
                 title: NextPlayingVideoInfo.videoDetails.title,

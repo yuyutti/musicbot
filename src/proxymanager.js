@@ -36,4 +36,4 @@ class ProxyManager {
     }
 }
 
-module.exports = ProxyManager;
+module.exports = new ProxyManager();

@@ -11,7 +11,7 @@ ffmpeg.setFfmpegPath(ffmpegPath);
 const { volume, lang, filter: getFilter, LogChannel } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
-const ProxyManager = require('./proxymanager');
+const proxyManager = require('./proxymanager');
 const { queue: musicQueue } = require('./musicQueue');
 const { autoplay } = require('./autoplay');
 const { cleanupQueue, cleanupButtons } = require('./cleanUp');
@@ -30,8 +30,6 @@ class processKill {
         this.child.kill('SIGKILL');
     }
 }
-
-const proxyManager = new ProxyManager();
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
