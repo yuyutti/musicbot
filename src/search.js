@@ -3,6 +3,7 @@ const playdl = require("play-dl");
 const language = require("../lang/commands/play");
 
 const ytdl = require("@distube/ytdl-core");
+const proxyManager = require("./proxymanager");
 
 class WorkerPool {
     constructor(poolSize, workerPath) {
@@ -116,9 +117,17 @@ else {
 
             let songs = [];
             let name = "";
+            let agent = null;
+            if (stringType === "yt_video") {
+                const proxy = proxyManager.getProxy();
+                if (proxy) {
+                    agent = ytdl.createProxyAgent({ uri: proxy });
+                }
+            }
+
             switch (stringType) {
                 case "yt_video":
-                    songs = await addYouTubeVideo(songString, userId, lang);
+                    songs = await addYouTubeVideo(songString, userId, lang, agent);
                     break;
                 case "yt_playlist":
                     songs = await addYouTubePlaylist(songString, userId, lang);
@@ -145,17 +154,18 @@ else {
             return { addedCount: songs.length, songs, name };
         }
 
-        async function addYouTubeVideo(songString, userId, lang) {
+        async function addYouTubeVideo(songString, userId, lang, agent) {
             try {
                 // const videoInfo = await playdl.video_basic_info(songString);
-                const videoInfo = await ytdl.getBasicInfo(songString);
+                const videoInfo = await ytdl.getBasicInfo(songString, { agent });
                 return [{
                     title: videoInfo.videoDetails.title,
                     url: songString,
                     duration: videoInfo.videoDetails.lengthSeconds,
                     requestBy: userId
                 }];
-            } catch {
+            } catch(error) {
+                console.error("YouTube動画の取得に失敗:", error);
                 parentPort.postMessage({ content: language.notFoundVoiceChannel[lang], ephemeral: true });
                 return 0;
             }
