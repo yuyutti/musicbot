@@ -4,10 +4,11 @@ const { Throttle } = require('stream-throttle');
 const ytdl = require('@distube/ytdl-core');
 const fs = require('fs');
 const path = require('path');
+const { fork } = require('child_process');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static'); 
 ffmpeg.setFfmpegPath(ffmpegPath);
-const { volume, lang, filter: getFilter } = require('../SQL/lockup');
+const { volume, lang, filter: getFilter, LogChannel } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
 const { queue: musicQueue } = require('./musicQueue');
@@ -16,14 +17,55 @@ const { cleanupQueue, cleanupButtons } = require('./cleanUp');
 const { updatePlayingGuild } = require('../src/playingGuild');
 const { updateActivity } = require('../src/activity');
 const { joinVC } = require('./vc');
-const filter = require('./filter');
+const filterList = require('./filter');
 
 const { getLoggerChannel, getErrorChannel } = require('./log');
 
-const cookiePath = path.join(__dirname, "..", ".data", ".yt.cookie.json");
-const cookies = JSON.parse(fs.readFileSync(cookiePath, "utf-8"));
+class ProxyManager {
+    constructor() {
+        this.proxyFilePath = path.join(__dirname, '..', '.data', 'proxy.json');
+        const data = fs.readFileSync(this.proxyFilePath, 'utf8');
+        const json = JSON.parse(data);
+        this.proxyDefaultList = json.proxy;
+        this.proxyList = [...this.proxyDefaultList];
+        this.shuffleProxy();
+    }
 
-const agent = ytdl.createAgent(cookies);
+    shuffleProxy() {
+        const array = [...this.proxyList];
+        for (let i = array.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [array[i], array[j]] = [array[j], array[i]];
+        }
+        this.proxyList = array;
+    }
+
+    resetProxy() {
+        this.proxyList = [...this.proxyDefaultList];
+        this.shuffleProxy();
+    }
+
+    getProxy() {
+        if (process.env.ENABLE_PROXY === "false") {
+            return "";
+        }
+        if (this.proxyList.length === 0) {
+            this.resetProxy();
+        }
+        return this.proxyList.shift();
+    }
+}
+
+class processKill {
+    constructor(child) {
+        this.child = child;
+    }
+    kill() {
+        this.child.kill('SIGKILL');
+    }
+}
+
+const proxyManager = new ProxyManager();
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
@@ -70,10 +112,10 @@ async function playSong(guildId, song) {
 
     try {
         const isPlaying = await getStream(serverQueue, song);
-        if (!isPlaying) {
-            delete serverQueue._currentlyTryingToPlay;
-            return;
-        }
+        // if (!isPlaying) {
+        //     delete serverQueue._currentlyTryingToPlay;
+        //     return;
+        // }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -145,10 +187,10 @@ async function rePlaySong(guildId, song) {
 
     try {
         const isPlaying = await getStream(serverQueue, song);
-        if (!isPlaying) {
-            delete serverQueue._currentlyTryingToPlay;
-            return;
-        }
+        // if (!isPlaying) {
+        //     delete serverQueue._currentlyTryingToPlay;
+        //     return;
+        // }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -165,74 +207,84 @@ async function rePlaySong(guildId, song) {
     }
 }
 
-async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
-    let attemptCount = 0;
-    while (attemptCount < retries) {
-        try {
-            attemptCount++;
-            console.log(`Playing song (Attempt ${attemptCount}): ${song.title}`);
+async function getStream(serverQueue, song) {
+    const guildId = serverQueue.guildId;
+    const proxy = proxyManager.getProxy();
+    console.log(`Using proxy: ${proxy}`);
+    const currentFilter = await getFilter(guildId);
 
-            // const defaultItagList = [ 18, 250, 251, 140, 249 ];
-            const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
-            if (!serverQueue.itagList) {
-                serverQueue.itagList = [...defaultItagList];
-            }
-            if (serverQueue.itagList.length === 0) {
-                await handleStreamError(serverQueue, false);
-                return false;
-            }
-            
-            const info = await ytdl.getInfo(song.url, { agent } );
-            const formats = info.formats;
-            
-            while (serverQueue.itagList.length > 0) {
-                const itag = serverQueue.itagList[0];
-                serverQueue.itag = itag;
-                console.log(`itag: ${itag}`);
-            
-                const format = formats.find(f => f.itag === itag);
-                if (!format) {
-                    serverQueue.itagList.shift();
-                    continue;
-                }
-            
-                try {
-                    serverQueue.stream = ytdl(song.url, {
-                        agent,
-                        quality: itag,
-                        highWaterMark: 1 << 28,
-                        dlChunkSize: serverQueue.LiveItag.includes(itag) ? 1024 * 1024 * 75 : undefined
-                    });
-                    serverQueue.itagList = [...defaultItagList];
-                    return true;
-                } catch (err) {
-                    console.warn(`itag ${itag} の stream に失敗しました: ${err.message}`);
-                    serverQueue.itagList.shift();
-                    continue;
-                }
-            }
+    const {
+        LiveItag,
+        time: { current: seekPosition },
+        voiceChannel: { members: { size: vcSize } },
+        filter,
+        voiceChannel: { guild: { name: guildName } }
+    } = serverQueue;
 
-            serverQueue.stream = ytdl(song.url, { agent, highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
-            return true;
-        } catch (error) {
-            console.error(`Error while fetching stream for ${song.title}: ${error.message}`);
-            if (error.message.includes('Sign in to confirm your age')) {
-                await handleStreamError(serverQueue, true);
-                return;
-            }
+    const child = fork(path.join(__dirname, 'playsong_stream.js'), [], {
+        env: {
+            ...process.env,
+            GLOBAL_AGENT_HTTP_PROXY: proxy,
+            HTTP_PROXY: proxy
+        },
+        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+    });
 
-            if (attemptCount === retries) {
-                const errorChannel = getErrorChannel();
-                if (errorChannel) {
-                    errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error.message}\`\`\``);
-                }
-                await handleStreamError(serverQueue, false);
-                return false;
-            }
+    serverQueue.ffmpegProcess = new processKill(child);
 
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy });
+
+    child.on('message', msg => {
+        if (msg.type === "log") {
+            console.log(msg.message);
         }
-    }
+        if (msg.type === "logger") {
+            console.log(msg.message);
+            getLoggerChannel().send(msg.message);
+        }
+        if (msg.type === "error") {
+            console.log(msg.message);
+            getErrorChannel().send(msg.message);
+        }
+        if (msg.type === "itag") {
+            serverQueue.itag = msg.itag;
+        }
+        if (msg.type === "itagList") {
+            serverQueue.itagList = msg.itagList;
+        }
+        if (msg.type === "handleStreamError") {
+            handleStreamError(serverQueue, msg.isAgeRestricted);
+        }
+        if (msg.type === "replaySong") {
+            rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+        }
+        if (msg.type === "filter") {
+            serverQueue.filter = msg.filter;
+        }
+        if (msg.type === "ready") {
+            console.log('readyを受信しました');
+            
+            console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
+
+            serverQueue.Filter = serverQueue.filter;
+
+            const throttleRate = 320 * 1024 / 8; // 320kbps
+            serverQueue.Throttle = new Throttle({ rate: throttleRate });
+
+            const audioStream = child.stdout.pipe(serverQueue.Throttle);
+            
+            serverQueue.resource = createAudioResource(audioStream, {
+                inputType: StreamType.WebmOpus,  // WebmOpusが適切でない場合、他の形式に変更
+                inlineVolume: true
+            });
+            serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
+
+            // 再生開始処理
+            setupCommandStatusListeners(serverQueue, guildId);
+            serverQueue.audioPlayer.play(serverQueue.resource);
+            serverQueue.connection.subscribe(serverQueue.audioPlayer);
+        }
+    });
 }
 
 async function handleStreamError(serverQueue, isAgeRestricted) {
@@ -421,164 +473,25 @@ async function sendPlayingMessage(serverQueue) {
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
-    if (serverQueue.ffmpegProcess) {
-        serverQueue.ffmpegProcess.kill('SIGKILL');
-        serverQueue.ffmpegProcess = null;
-    }
+    // const vcSize = serverQueue.voiceChannel.members.size;
+    // console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
-    const seekPosition = serverQueue.time.current;
-    let YT_lastLoggedBytes = 0;
-    let YT_accumulatedSizeBytes = 0;
-    serverQueue.stream.on("data", (chunk) => {
-        const currentTime = Date.now();
-        YT_accumulatedSizeBytes += chunk.length;
-        const bytesSinceLastLog = YT_accumulatedSizeBytes - YT_lastLoggedBytes;
-        YT_lastLoggedBytes = YT_accumulatedSizeBytes;
-        
-        const kbps = (bytesSinceLastLog * 8) / 1024;
-        const readKB = bytesSinceLastLog / 1024;
-        // console.log( `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`);
-        process.dashboardData.traffic.push({
-            timestamp: currentTime,
-            guildId: guildId,
-            kbps: kbps.toFixed(2),
-            kb: readKB.toFixed(2),
-            rs: "r"
-        });
-    });
+    // serverQueue.Filter = serverQueue.filter;
 
-    const vcSize = serverQueue.voiceChannel.members.size;
-    const currentFilter = await getFilter(guildId);
-
-    if (currentFilter === 'auto') {
-        serverQueue.filter = filter
-            .filter(f => f.auto)
-            .sort((a, b) => a.minVCSize - b.minVCSize)
-            .find(f => vcSize <= f.minVCSize);
-    } else {
-        serverQueue.filter = filter.find(f => f.value === currentFilter);
-        if (!serverQueue.filter) {
-            serverQueue.filter = filter
-                .filter(f => f.auto)
-                .sort((a, b) => a.minVCSize - b.minVCSize)
-                .find(f => vcSize <= f.minVCSize);
-        }
-        else {
-            serverQueue.filter.auto = false;
-        }
-    }
-
-    console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
-
-    serverQueue.Filter = serverQueue.filter;
-
-    serverQueue.ffmpegProcess = ffmpeg(serverQueue.stream)
-        .setStartTime(seekPosition)
-        .noVideo()
-        .audioFilters(serverQueue.filter.filter)
-        .audioFrequency(48000)
-        .outputOptions([
-            '-reconnect_at_eof', '1',
-            '-reconnect_streamed', '1',
-            '-fflags', '+genpts',
-            '-loglevel', 'error',
-        ])
-        .format('opus')
-        .on('stderr', (stderr) => {
-            console.log('FFmpeg stdout:', stderr);
-        })
-        .on('error', (error) => {
-            if (error.message.includes('Sign in to confirm your age')) return handleStreamError(serverQueue, true);
-            if (error.message.includes('SIGKILL')) return;
-            if (error.message.includes('Output stream error: Premature close')) return;
-            if (error.message.includes('Status code: 403')) {
-                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
-                return;
-            }
-            if (error.message.includes('ffmpeg exited with code 1')) {
-                serverQueue.itagList.shift();
-                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
-                return;
-            }
-            if (error.message.includes('No such format found')) {
-                serverQueue.itagList.shift();
-                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
-                return;
-            }
-            if (error.message.includes('ECONNRESET')) {
-                serverQueue.itagList.shift();
-                rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
-                return;
-            }
-            console.error('FFmpeg error:', error);
-            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``);
-        }
-    );
+    // const throttleRate = 320 * 1024 / 8; // 320kbps
+    // serverQueue.Throttle = new Throttle({ rate: throttleRate });
     
-    const throttleRate = 320 * 1024 / 8; // 320kbps
-    serverQueue.Throttle = new Throttle({ rate: throttleRate });
+    // const audioStream = serverQueue.streaming.pipe(serverQueue.Throttle);
 
-    const ffmpegStream = serverQueue.ffmpegProcess.pipe(serverQueue.Throttle);
-    
-    serverQueue.resource = createAudioResource(ffmpegStream, {
-        inputType: StreamType.WebmOpus,
-        inlineVolume: true
-    });
-    serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
+    // serverQueue.resource = createAudioResource(audioStream, {
+    //     inputType: StreamType.WebmOpus,
+    //     inlineVolume: true
+    // });
+    // serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-    const targetBufferSizeBytes = isNaN(serverQueue.stream.per_sec_bytes * 10) ? 75 * 1024 : serverQueue.stream.per_sec_bytes * 10;
-    let accumulatedSizeBytes = 0;
-    let lastLoggedBytes = 0;
-    
-    serverQueue.trafficLogInterval = setInterval(() => {
-        const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
-        lastLoggedBytes = accumulatedSizeBytes;
-        
-        // kbpsとKBの計算
-        const kbps = (bytesSinceLastLog * 8) / 1024;
-        const readKB = bytesSinceLastLog / 1024;
-        
-        const currentTime = Date.now();
-        
-        process.dashboardData.traffic.push({
-            timestamp: currentTime,
-            guildId: guildId,
-            kbps: kbps,
-            kb: readKB,
-            rs: "s"
-        });
-        
-        // console.log(
-        //     `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
-        // );
-    }, 1000);
-    
-    await new Promise((resolve, reject) => {
-        ffmpegStream.on('data', (chunk) => {
-            accumulatedSizeBytes += chunk.length;
-            if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
-        });
-        
-        ffmpegStream.on('error', async (error) => {
-            if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
-            console.error('FFmpeg stream error:', error);
-            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
-            handleStreamError(serverQueue, false);
-            reject(error);
-        });        
-
-        ffmpegStream.on('close', () => {
-            resolve();
-        });
-
-        ffmpegStream.on('end', () => {
-            resolve();
-        });
-    });
-
-    setupCommandStatusListeners(serverQueue, guildId);
-    serverQueue.audioPlayer.play(serverQueue.resource);
-    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+    // setupCommandStatusListeners(serverQueue, guildId);
+    // serverQueue.audioPlayer.play(serverQueue.resource);
+    // serverQueue.connection.subscribe(serverQueue.audioPlayer);
 }
 
 function setupCommandStatusListeners(serverQueue, guildId) {
