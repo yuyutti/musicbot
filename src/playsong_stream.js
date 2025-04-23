@@ -1,28 +1,24 @@
-require('global-agent/bootstrap');
-const https = require('https');
+// require('global-agent/bootstrap');
 const ytdl = require('@distube/ytdl-core');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
+let ffmpegProcess = null;
+
 process.on('message', async (msg) => {
+    if (msg.type === "kill") process.exit(0);
     if (msg.type !== "getStream") return;
 
-    const { song, LiveItag, seekPosition, vcSize, filter, currentFilter, guildName } = msg;
-
-    https.get('https://api.ipify.org?format=json', (res) => {
-        let data = '';
-        res.on('data', chunk => data += chunk);
-        res.on('end', () => {
-            process.send({ type: "log", message: `IP Address: ${JSON.parse(data).ip}` });
-        });
-        }).on('error', (err) => {
-            process.send({ type: "log", message: `Error fetching IP address: ${err.message}` });
-        });
-
+    const { song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy } = msg;
+    
+    // const agent = ytdl.createAgent(JSON.parse(fs.readFileSync(path.join(__dirname, "..", ".data", ".yt.cookie.json"), 'utf8')));
+    const agent = ytdl.createProxyAgent( { uri: proxy } );
+    
     let currentItagList = []
+    let currentItag = 0;
     let retries = 3;
-    let delayMs = 1500;
+    let delayMs = 6000;
     let attemptCount = 0;
 
     while (attemptCount < retries) {
@@ -30,45 +26,48 @@ process.on('message', async (msg) => {
             attemptCount++;
             process.send({ type: "logger", message: `Playing song (Attempt ${attemptCount}): ${song.title}` });
 
-            const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
-            if (!currentItagList) {
+            // const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
+            const defaultItagList = [ 18 ];
+            if (currentItagList.length === 0) {
                 currentItagList = [...defaultItagList];
             }
 
-            const info = await ytdl.getInfo(song.url);
+            const info = await ytdl.getInfo(song.url, { agent });
             const formats = info.formats;
 
-            while (currentItagList.length > 0) {
-                const currentItag = currentItagList[0];
-                process.send({ type:"itag", itag: currentItag });
-                
-                const format = formats.find(f => f.itag === currentItag);
-                if (!format) {
-                    currentItagList.shift();
-                    process.send({ type: "itagList", itagList: currentItagList });
-                    continue;
-                }
-                
+            while (currentItagList.length > 0) {                
                 try {
-                    const stream = ytdl(song.url, {
-                        quality: currentItag,
+                    currentItag = currentItagList[0];
+                    process.send({ type:"itag", itag: currentItag });
+                    
+                    const format = formats.find(f => f.itag === currentItag);
+                    
+                    if (!format) {
+                        currentItagList.shift();
+                        process.send({ type: "itagList", itagList: currentItagList });
+                        continue;
+                    }
+
+                    process.send({ type: "log", message: `itag ${currentItag} の stream を取得中...` });
+                    const stream = ytdl.downloadFromInfo(info, {
+                        format,
+                        agent,
                         highWaterMark: 1 << 28,
                         dlChunkSize: LiveItag.includes(currentItag) ? 1024 * 1024 * 75 : undefined
                     });
-                    process.send({ type: "stream", stream: stream });
-                    currentItagList = [...defaultItagList];
 
+                    currentItagList = [...defaultItagList];
                     let serverQueue_filter
 
                     if (currentFilter === 'auto') {
-                        serverQueue_filter = filter
+                        serverQueue_filter = filterList
                             .filter(f => f.auto)
                             .sort((a, b) => a.minVCSize - b.minVCSize)
                             .find(f => vcSize <= f.minVCSize);
                     } else {
-                        serverQueue_filter = filter.find(f => f.value === currentFilter);
+                        serverQueue_filter = filterList.find(f => f.value === currentFilter);
                         if (!serverQueue_filter) {
-                            serverQueue_filter = filter
+                            serverQueue_filter = filterList
                                 .filter(f => f.auto)
                                 .sort((a, b) => a.minVCSize - b.minVCSize)
                                 .find(f => vcSize <= f.minVCSize);
@@ -80,18 +79,76 @@ process.on('message', async (msg) => {
 
                     process.send({ type: "filter", filter: serverQueue_filter });
 
-                    const ffmpegStream = ffmpeg(stream)
+                    const CHUNK_LIMIT = 1 * 1024 * 1024;
+                    let totalReceivedBytes = 0;
+                    let currentReceivedBytes = 0;
+
+                    function formatBytes(bytes) {
+                        if (bytes >= 1024 * 1024 * 1024) {
+                            return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+                        } else if (bytes >= 1024 * 1024) {
+                            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+                        } else if (bytes >= 1024) {
+                            return (bytes / 1024).toFixed(2) + ' KB';
+                        }
+                        return bytes + ' B';
+                    }
+                    
+                    stream.on('data', chunk => {
+                        // youtubeでダウンロードされたstream量を測定
+                        
+                        totalReceivedBytes += chunk.length;
+                        currentReceivedBytes += chunk.length;
+                    
+                        if (currentReceivedBytes >= CHUNK_LIMIT) {
+                            const formattedSize = formatBytes(totalReceivedBytes);
+                            
+                            process.send({
+                                type: 'log',
+                                message: `Accumulated data: ${formattedSize}`
+                            });
+                        
+                            currentReceivedBytes = 0;
+                        }
+                    });
+                    
+                    stream.on('end', () => {
+                        if (totalReceivedBytes > 0) {
+                            const formattedSize = formatBytes(totalReceivedBytes);
+                            process.send({
+                                type: 'log',
+                                message: `Final accumulated data: ${formattedSize}`
+                            });
+                        }
+                        process.send({ type: 'log', message: 'Stream ended' });
+                    });
+                    
+                    stream.on('error', (err) => {
+                        process.send({ type: 'log', message: `Stream error: ${err.message}` });
+                    });
+
+                    process.send({ type: "log", message: `itag ${currentItag} の stream を取得しました` });
+                    process.send({ type: "log", message: `FFmpeg で変換を開始します` });
+
+                    ffmpegProcess = ffmpeg(stream)
                         .setStartTime(seekPosition)
                         .noVideo()
                         .audioFilters(serverQueue_filter.filter)
                         .audioFrequency(48000)
                         .outputOptions([
+                            '-c:a', 'libopus',
                             '-reconnect_at_eof', '1',
                             '-reconnect_streamed', '1',
                             '-fflags', '+genpts',
-                            '-loglevel', 'info',
+                            '-loglevel', 'error'
                         ])
                         .format('opus')
+                        .on('start', () => {
+                            process.send({ type: "ready" });
+                        })
+                        .on('end', () => {
+                            process.exit(0);
+                        })
                         .on('stderr', (stderr) => {
                             process.send({ type: "log", message: `FFmpeg stdout: ${stderr}` });
                         })
@@ -100,8 +157,8 @@ process.on('message', async (msg) => {
                                 process.send({ type: "handleStreamError", isAgeRestricted: true })
                                 process.exit(1);
                             }
-                            if (error.message.includes('SIGKILL')) return;
-                            if (error.message.includes('Output stream error: Premature close')) return;
+                            if (error.message.includes('SIGKILL')) process.exit(1);
+                            if (error.message.includes('Output stream error: Premature close')) process.exit(1);
                             if (error.message.includes('Status code: 403')) {
                                 process.send({ type: "replaySong" })
                                 process.exit(1);
@@ -125,31 +182,50 @@ process.on('message', async (msg) => {
                                 process.exit(1);
                             }
                             process.send({ type: "error", message: `**${guildName}**でFFmpegエラーが発生しました\n\`\`\`${error}\`\`\``});
-                        })
-                        .pipe(process.stdout);
+                        });
 
-                        ffmpegStream.on('end', () => {
-                            process.exit(0);
+                        const outputStream = ffmpegProcess.pipe(process.stdout, { end: true });
+                        
+                        
+                        process.send({ type: "log", message: `FFmpeg での変換を開始しました` });
+
+                        await new Promise((resolve, reject) => {
+                            outputStream.once('end', () => {
+                                process.send({ type: "log", message: '✅ FFmpeg finished' });
+                                resolve();
+                            });
+                        
+                            outputStream.once('close', () => {
+                                process.send({ type: "log", message: '📴 FFmpeg closed' });
+                                resolve();
+                            });
+                        
+                            outputStream.once('error', (error) => {
+                                process.send({ type: "log", message: `❌ FFmpeg error: ${error.message}` });
+                                reject(error);
+                            });
+                        
+                            ffmpegProcess.once('exit', (code) => {
+                                process.send({ type: "log", message: `FFmpegプロセスがコード ${code} で終了しました` });
+                                resolve();
+                            });
                         });
-                        ffmpegStream.on('close', () => {
-                            process.exit(0);
-                        });
+
+                        process.send({ type: "log", message: `FFmpeg での変換が完了しました` });
                 } catch (err) {
                     process.send({ type: "logger", message: `itag ${currentItag} の stream に失敗しました: ${err.message}` });
                     currentItagList.shift();
                     process.send({ type: "itagList", itagList: currentItagList });
-                    continue;
+                    process.exit(1);
+                    // continue;
                 }
             }
 
         } catch (error) {
-            process.send({ type: "error", message: `Error while fetching stream for ${song.title}: ${error.message}` });
+            process.send({ type: "logger", message: `Error while fetching stream for ${song.title}: ${error.message}` });
             if (error.message.includes('Sign in to confirm your age')) {
                 process.send({ type: "handleStreamError", isAgeRestricted: true })
                 process.exit(1);
-            }
-            if (error.message.includes('Sign in to confirm you’re not a bot')) {
-                // IPを帰るってことができないんよね...
             }
 
             if (attemptCount === retries) {
@@ -160,3 +236,18 @@ process.on('message', async (msg) => {
         }
     }
 });
+
+process.on('SIGINT', () => {
+    process.send({ type: "log", message: 'SIGINTを受け取りました。終了します。' });
+    if (ffmpegProcess) {
+        ffmpegProcess.kill('SIGINT');
+    }
+    process.exit(0);
+});
+
+process.on('uncaughtException', err =>
+    process.send({ type: 'log', message: `⚠️ uncaughtException: ${err.stack}` })
+);
+process.on('unhandledRejection', (reason, p) =>
+    process.send({ type: 'log', message: `⚠️ unhandledRejection: ${reason}` })
+);

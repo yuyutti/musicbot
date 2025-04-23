@@ -19,6 +19,7 @@ module.exports = {
         const serverQueue = musicQueue.get(interactionOrMessage.guildId);
         if (!serverQueue) return interactionOrMessage.reply(language.notQueue[lang]);
         cleanupQueue(interactionOrMessage.guildId) && cleanupButtons(interactionOrMessage.guildId);
+        if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill();
         interactionOrMessage.reply(language.stopped[lang]);
     },
 };

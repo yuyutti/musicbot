@@ -17,7 +17,7 @@ const { cleanupQueue, cleanupButtons } = require('./cleanUp');
 const { updatePlayingGuild } = require('../src/playingGuild');
 const { updateActivity } = require('../src/activity');
 const { joinVC } = require('./vc');
-const filter = require('./filter');
+const filterList = require('./filter');
 
 const { getLoggerChannel, getErrorChannel } = require('./log');
 
@@ -46,10 +46,22 @@ class ProxyManager {
     }
 
     getProxy() {
+        if (process.env.ENABLE_PROXY === "false") {
+            return "";
+        }
         if (this.proxyList.length === 0) {
             this.resetProxy();
         }
         return this.proxyList.shift();
+    }
+}
+
+class processKill {
+    constructor(child) {
+        this.child = child;
+    }
+    kill() {
+        this.child.kill('SIGKILL');
     }
 }
 
@@ -100,10 +112,10 @@ async function playSong(guildId, song) {
 
     try {
         const isPlaying = await getStream(serverQueue, song);
-        if (!isPlaying) {
-            delete serverQueue._currentlyTryingToPlay;
-            return;
-        }
+        // if (!isPlaying) {
+        //     delete serverQueue._currentlyTryingToPlay;
+        //     return;
+        // }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -175,10 +187,10 @@ async function rePlaySong(guildId, song) {
 
     try {
         const isPlaying = await getStream(serverQueue, song);
-        if (!isPlaying) {
-            delete serverQueue._currentlyTryingToPlay;
-            return;
-        }
+        // if (!isPlaying) {
+        //     delete serverQueue._currentlyTryingToPlay;
+        //     return;
+        // }
         await sendPlayingMessage(serverQueue);
         await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
@@ -194,75 +206,6 @@ async function rePlaySong(guildId, song) {
         handleStreamError(serverQueue, false);
     }
 }
-
-// async function getStream(serverQueue, song, retries = 3, delayMs = 1500) {
-//     let attemptCount = 0;
-//     while (attemptCount < retries) {
-//         try {
-//             attemptCount++;
-//             console.log(`Playing song (Attempt ${attemptCount}): ${song.title}`);
-
-//             // const defaultItagList = [ 18, 250, 251, 140, 249 ];
-//             const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
-//             if (!serverQueue.itagList) {
-//                 serverQueue.itagList = [...defaultItagList];
-//             }
-//             if (serverQueue.itagList.length === 0) {
-//                 await handleStreamError(serverQueue, false);
-//                 return false;
-//             }
-            
-//             const info = await ytdl.getInfo(song.url);
-//             const formats = info.formats;
-            
-//             while (serverQueue.itagList.length > 0) {
-//                 const itag = serverQueue.itagList[0];
-//                 serverQueue.itag = itag;
-//                 console.log(`itag: ${itag}`);
-            
-//                 const format = formats.find(f => f.itag === itag);
-//                 if (!format) {
-//                     serverQueue.itagList.shift();
-//                     continue;
-//                 }
-            
-//                 try {
-//                     serverQueue.stream = ytdl(song.url, {
-//                         quality: itag,
-//                         highWaterMark: 1 << 28,
-//                         dlChunkSize: serverQueue.LiveItag.includes(itag) ? 1024 * 1024 * 75 : undefined
-//                     });
-//                     serverQueue.itagList = [...defaultItagList];
-//                     return true;
-//                 } catch (err) {
-//                     console.warn(`itag ${itag} の stream に失敗しました: ${err.message}`);
-//                     serverQueue.itagList.shift();
-//                     continue;
-//                 }
-//             }
-
-//             serverQueue.stream = ytdl(song.url, { highWaterMark: 1 << 28, dlChunkSize: 1024 * 1024 * 75 });
-//             return true;
-//         } catch (error) {
-//             console.error(`Error while fetching stream for ${song.title}: ${error.message}`);
-//             if (error.message.includes('Sign in to confirm your age')) {
-//                 await handleStreamError(serverQueue, true);
-//                 return;
-//             }
-
-//             if (attemptCount === retries) {
-//                 const errorChannel = getErrorChannel();
-//                 if (errorChannel) {
-//                     errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でストリーム取得エラーが発生しました\n\`\`\`${error.message}\`\`\``);
-//                 }
-//                 await handleStreamError(serverQueue, false);
-//                 return false;
-//             }
-
-//             await new Promise(resolve => setTimeout(resolve, delayMs));
-//         }
-//     }
-// }
 
 async function getStream(serverQueue, song) {
     const guildId = serverQueue.guildId;
@@ -282,13 +225,14 @@ async function getStream(serverQueue, song) {
         env: {
             ...process.env,
             GLOBAL_AGENT_HTTP_PROXY: proxy,
+            HTTP_PROXY: proxy
         },
         stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
     });
 
-    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, currentFilter, guildName });
+    serverQueue.ffmpegProcess = new processKill(child);
 
-    serverQueue.streaming = child.stdout;
+    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy });
 
     child.on('message', msg => {
         if (msg.type === "log") {
@@ -299,7 +243,7 @@ async function getStream(serverQueue, song) {
             getLoggerChannel().send(msg.message);
         }
         if (msg.type === "error") {
-            console.error(msg.message);
+            console.log(msg.message);
             getErrorChannel().send(msg.message);
         }
         if (msg.type === "itag") {
@@ -317,8 +261,28 @@ async function getStream(serverQueue, song) {
         if (msg.type === "filter") {
             serverQueue.filter = msg.filter;
         }
-        if (msg.type === "stream") {
-            serverQueue.stream = msg.stream;
+        if (msg.type === "ready") {
+            console.log('readyを受信しました');
+            
+            console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
+
+            serverQueue.Filter = serverQueue.filter;
+
+            const throttleRate = 320 * 1024 / 8; // 320kbps
+            serverQueue.Throttle = new Throttle({ rate: throttleRate });
+
+            const audioStream = child.stdout.pipe(serverQueue.Throttle);
+            
+            serverQueue.resource = createAudioResource(audioStream, {
+                inputType: StreamType.WebmOpus,  // WebmOpusが適切でない場合、他の形式に変更
+                inlineVolume: true
+            });
+            serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
+
+            // 再生開始処理
+            setupCommandStatusListeners(serverQueue, guildId);
+            serverQueue.audioPlayer.play(serverQueue.resource);
+            serverQueue.connection.subscribe(serverQueue.audioPlayer);
         }
     });
 }
@@ -509,102 +473,25 @@ async function sendPlayingMessage(serverQueue) {
 }
 
 async function prepareAndPlayStream(serverQueue, guildId) {
-    // if (serverQueue.ffmpegProcess) {
-    //     serverQueue.ffmpegProcess.kill('SIGKILL');
-    //     serverQueue.ffmpegProcess = null;
-    // }
+    // const vcSize = serverQueue.voiceChannel.members.size;
+    // console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
-    // const seekPosition = serverQueue.time.current;
-    // let YT_lastLoggedBytes = 0;
-    // let YT_accumulatedSizeBytes = 0;
-    // serverQueue.stream.on("data", (chunk) => {
-    //     const currentTime = Date.now();
-    //     YT_accumulatedSizeBytes += chunk.length;
-    //     const bytesSinceLastLog = YT_accumulatedSizeBytes - YT_lastLoggedBytes;
-    //     YT_lastLoggedBytes = YT_accumulatedSizeBytes;
-        
-    //     const kbps = (bytesSinceLastLog * 8) / 1024;
-    //     const readKB = bytesSinceLastLog / 1024;
-    //     // console.log( `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`);
-    //     process.dashboardData.traffic.push({
-    //         timestamp: currentTime,
-    //         guildId: guildId,
-    //         kbps: kbps.toFixed(2),
-    //         kb: readKB.toFixed(2),
-    //         rs: "r"
-    //     });
+    // serverQueue.Filter = serverQueue.filter;
+
+    // const throttleRate = 320 * 1024 / 8; // 320kbps
+    // serverQueue.Throttle = new Throttle({ rate: throttleRate });
+    
+    // const audioStream = serverQueue.streaming.pipe(serverQueue.Throttle);
+
+    // serverQueue.resource = createAudioResource(audioStream, {
+    //     inputType: StreamType.WebmOpus,
+    //     inlineVolume: true
     // });
+    // serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-    const vcSize = serverQueue.voiceChannel.members.size;
-    console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
-
-    serverQueue.Filter = serverQueue.filter;
-
-    
-    const throttleRate = 320 * 1024 / 8; // 320kbps
-    serverQueue.Throttle = new Throttle({ rate: throttleRate });
-    
-    const audioStream = serverQueue.streaming.pipe(serverQueue.Throttle);
-
-    serverQueue.resource = createAudioResource(audioStream, {
-        inputType: StreamType.WebmOpus,
-        inlineVolume: true
-    });
-    serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
-
-    const targetBufferSizeBytes = isNaN(serverQueue.stream.per_sec_bytes * 10) ? 75 * 1024 : serverQueue.stream.per_sec_bytes * 10;
-    let accumulatedSizeBytes = 0;
-    let lastLoggedBytes = 0;
-    
-    serverQueue.trafficLogInterval = setInterval(() => {
-        const bytesSinceLastLog = accumulatedSizeBytes - lastLoggedBytes;
-        lastLoggedBytes = accumulatedSizeBytes;
-        
-        // kbpsとKBの計算
-        const kbps = (bytesSinceLastLog * 8) / 1024;
-        const readKB = bytesSinceLastLog / 1024;
-        
-        const currentTime = Date.now();
-        
-        process.dashboardData.traffic.push({
-            timestamp: currentTime,
-            guildId: guildId,
-            kbps: kbps,
-            kb: readKB,
-            rs: "s"
-        });
-        
-        // console.log(
-        //     `timestamp: ${currentTime}, guildId: ${guildId}, Speed: ${kbps.toFixed(2)} kbps, Data Read: ${readKB.toFixed(2)} KB`
-        // );
-    }, 1000);
-    
-    await new Promise((resolve, reject) => {
-        audioStream.on('data', (chunk) => {
-            accumulatedSizeBytes += chunk.length;
-            if (accumulatedSizeBytes >= targetBufferSizeBytes) resolve();
-        });
-        
-        audioStream.on('error', async (error) => {
-            if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
-            console.error('streaming error:', error);
-            getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でstreamingエラーが発生しました\n\`\`\`${error}\`\`\``);
-            handleStreamError(serverQueue, false);
-            reject(error);
-        });        
-
-        audioStream.on('close', () => {
-            resolve();
-        });
-
-        audioStream.on('end', () => {
-            resolve();
-        });
-    });
-
-    setupCommandStatusListeners(serverQueue, guildId);
-    serverQueue.audioPlayer.play(serverQueue.resource);
-    serverQueue.connection.subscribe(serverQueue.audioPlayer);
+    // setupCommandStatusListeners(serverQueue, guildId);
+    // serverQueue.audioPlayer.play(serverQueue.resource);
+    // serverQueue.connection.subscribe(serverQueue.audioPlayer);
 }
 
 function setupCommandStatusListeners(serverQueue, guildId) {
