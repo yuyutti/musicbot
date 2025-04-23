@@ -234,7 +234,7 @@ async function getStream(serverQueue, song) {
 
     child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy });
 
-    child.on('message', msg => {
+    child.on('message', async msg => {
         if (msg.type === "log") {
             console.log(msg.message);
         }
@@ -278,6 +278,31 @@ async function getStream(serverQueue, song) {
                 inlineVolume: true
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
+
+            const FIVE_SECOND_BYTES = 80 * 1024
+            let accumulatedSizeBytes = 0;
+            await new Promise((resolve, reject) => {
+                audioStream.on('data', (chunk) => {
+                    accumulatedSizeBytes += chunk.length;
+                    if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) resolve();
+                });
+                
+                audioStream.on('error', async (error) => {
+                    if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+                    console.error('FFmpeg stream error:', error);
+                    getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
+                    handleStreamError(serverQueue, false);
+                    reject(error);
+                });        
+            
+                audioStream.on('close', () => {
+                    resolve();
+                });
+            
+                audioStream.on('end', () => {
+                    resolve();
+                });
+            });
 
             // 再生開始処理
             setupCommandStatusListeners(serverQueue, guildId);
