@@ -55,8 +55,8 @@ process.on('message', async (msg) => {
                     const stream = ytdl.downloadFromInfo(info, {
                         format,
                         agent,
-                        highWaterMark: 512 * 1024,
-                        dlChunkSize: 64 * 1024
+                        highWaterMark: 1024 * 1024,
+                        dlChunkSize: 128 * 1024
                     });
 
                     currentItagList = [...defaultItagList];
