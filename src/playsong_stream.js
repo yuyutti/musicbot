@@ -13,7 +13,10 @@ process.on('message', async (msg) => {
     const { song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy } = msg;
     
     // const agent = ytdl.createAgent(JSON.parse(fs.readFileSync(path.join(__dirname, "..", ".data", ".yt.cookie.json"), 'utf8')));
-    const agent = ytdl.createProxyAgent( { uri: proxy } );
+    let agent = null;
+    if (proxy) {
+        agent = ytdl.createProxyAgent( { uri: proxy } );
+    }
     
     let currentItagList = []
     let currentItag = 0;
@@ -52,8 +55,8 @@ process.on('message', async (msg) => {
                     const stream = ytdl.downloadFromInfo(info, {
                         format,
                         agent,
-                        highWaterMark: 1 << 28,
-                        dlChunkSize: LiveItag.includes(currentItag) ? 1024 * 1024 * 75 : undefined
+                        highWaterMark: 512 * 1024,
+                        dlChunkSize: 64 * 1024
                     });
 
                     currentItagList = [...defaultItagList];
