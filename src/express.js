@@ -4,7 +4,6 @@ const express = require('express');
 const app = express();
 
 app.get('/dashboard', (req, res) => {
-    // 正しいパスを解決してHTMLを返す
     res.sendFile(path.join(__dirname, '../public/dashboard.html'));
 });
 
