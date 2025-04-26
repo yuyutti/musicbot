@@ -11,8 +11,7 @@ process.on('message', async (msg) => {
     if (msg.type !== "getStream") return;
 
     const { song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy } = msg;
-    
-    // const agent = ytdl.createAgent(JSON.parse(fs.readFileSync(path.join(__dirname, "..", ".data", ".yt.cookie.json"), 'utf8')));
+
     let agent = null;
     if (proxy) {
         agent = ytdl.createProxyAgent( { uri: proxy } );
@@ -23,6 +22,14 @@ process.on('message', async (msg) => {
     let retries = 3;
     let delayMs = 6000;
     let attemptCount = 0;
+
+    // const VIDMap = {
+    //     "ZFoJYI7Q4iA": "dlFA0Zq1k2A"
+    // }
+
+    // const videoID = song.url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    
+    // song.url = videoID && VIDMap[videoID] ? `https://www.youtube.com/watch?v=${VIDMap[videoID]}` : song.url;
 
     while (attemptCount < retries) {
         try {
@@ -99,6 +106,9 @@ process.on('message', async (msg) => {
                     
                     stream.on('data', chunk => {
                         // youtubeでダウンロードされたstream量を測定
+                        const chunkSizeInBytes = Buffer.byteLength(chunk);
+                        const chunkSizeInKB = chunkSizeInBytes / 1024;
+                        process.send({ type: "downloading", size: chunkSizeInKB });
                         
                         totalReceivedBytes += chunk.length;
                         currentReceivedBytes += chunk.length;
@@ -123,11 +133,15 @@ process.on('message', async (msg) => {
                                 message: `Final accumulated data: ${formattedSize}`
                             });
                         }
-                        process.send({ type: 'log', message: 'Stream ended' });
                     });
                     
                     stream.on('error', (err) => {
                         process.send({ type: 'log', message: `Stream error: ${err.message}` });
+                        if (err.message.includes("403")) {
+                            process.send({ type: "handleStreamError", isAgeRestricted: false })
+                            process.exit(1);
+                        }
+                        process.exit(1)
                     });
 
                     process.send({ type: "log", message: `itag ${currentItag} の stream を取得しました` });
@@ -228,6 +242,16 @@ process.on('message', async (msg) => {
             process.send({ type: "logger", message: `Error while fetching stream for ${song.title}: ${error.message}` });
             if (error.message.includes('Sign in to confirm your age')) {
                 process.send({ type: "handleStreamError", isAgeRestricted: true })
+                process.exit(1);
+            }
+
+            if (error.message.includes('Video unavailable')) {
+                process.send({ type: "unavailable" })
+                process.exit(1);
+            }
+
+            if(error.message.includes('Sign in to confirm you’re not a bot')) {
+                process.send({ type: "singInToConfirmYouReNotABot"})
                 process.exit(1);
             }
 

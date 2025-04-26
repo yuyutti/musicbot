@@ -21,6 +21,7 @@ const { joinVC } = require('./vc');
 const filterList = require('./filter');
 
 const { getLoggerChannel, getErrorChannel } = require('./log');
+const { timeStamp } = require('console');
 
 class processKill {
     constructor(child) {
@@ -81,7 +82,6 @@ async function playSong(guildId, song) {
         //     return;
         // }
         await sendPlayingMessage(serverQueue);
-        await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
         delete serverQueue._currentlyTryingToPlay;
     } catch (error) {
@@ -156,7 +156,6 @@ async function rePlaySong(guildId, song) {
         //     return;
         // }
         await sendPlayingMessage(serverQueue);
-        await prepareAndPlayStream(serverQueue, guildId);
         await pauseTimeout(serverQueue, guildId);
         delete serverQueue._currentlyTryingToPlay;
         delete serverQueue.playSongRetryCount;
@@ -225,9 +224,33 @@ async function getStream(serverQueue, song) {
         if (msg.type === "filter") {
             serverQueue.filter = msg.filter;
         }
+        if(msg.type === "unavailable") {
+            let message = language.unavailable[serverQueue.language](serverQueue.songs[0].title);
+            try {
+                await serverQueue.playingMessage.edit(message);
+            } catch (error) {
+                await serverQueue.textChannel.send(message);
+            }
+        }
+        if (msg.type === "downloading") {
+            const kb = msg.size
+            const kbps = Math.round((kb * 8) / 1000);
+            process.dashboardData.traffic.push({
+                timeStamp: Date.now(),
+                guildId: serverQueue.guildId,
+                kbps: kbps,
+                kb: kb,
+                rs: "s"
+            })
+        }
+        if(msg.type === "singInToConfirmYouReNotABot") {
+            proxyManager.blacklistProxy(proxy);
+            rePlaySong(guildId, song);
+        }
         if (msg.type === "ready") {
             console.log('readyを受信しました');
-            
+            process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
+            process.dashboardData.proxy.currentList = proxyManager.getProxyList();
             console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
             serverQueue.Filter = serverQueue.filter;
@@ -459,28 +482,6 @@ async function sendPlayingMessage(serverQueue) {
     } catch (error) {
         console.error('Playing message error:', error);
     }
-}
-
-async function prepareAndPlayStream(serverQueue, guildId) {
-    // const vcSize = serverQueue.voiceChannel.members.size;
-    // console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
-
-    // serverQueue.Filter = serverQueue.filter;
-
-    // const throttleRate = 320 * 1024 / 8; // 320kbps
-    // serverQueue.Throttle = new Throttle({ rate: throttleRate });
-    
-    // const audioStream = serverQueue.streaming.pipe(serverQueue.Throttle);
-
-    // serverQueue.resource = createAudioResource(audioStream, {
-    //     inputType: StreamType.WebmOpus,
-    //     inlineVolume: true
-    // });
-    // serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
-
-    // setupCommandStatusListeners(serverQueue, guildId);
-    // serverQueue.audioPlayer.play(serverQueue.resource);
-    // serverQueue.connection.subscribe(serverQueue.audioPlayer);
 }
 
 function setupCommandStatusListeners(serverQueue, guildId) {

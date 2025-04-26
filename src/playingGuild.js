@@ -2,7 +2,6 @@ const { EmbedBuilder } = require('discord.js');
 const { getStatusChannel, getStatusMessage, getLoggerChannel, getErrorChannel } = require('./log');
 const { queue } = require('./musicQueue');
 const { updateActivity } = require('./activity');
-const { search } = require('play-dl');
 
 require('../src/express');
 
@@ -12,6 +11,7 @@ process.dashboardData = {
     totalConnections: 0,
     totalListener: 0,
     traffic: [],
+    proxy: { currentList: [], blackList: [] },
     SQLpool: [],
     WorkerPool: { search: [] }
 }
@@ -20,7 +20,6 @@ function updatePlayingGuild() {
     const statusChannel = getStatusChannel();
     const statusMessage = getStatusMessage();
     const loggerChannel = getLoggerChannel();
-    const errorChannel = getErrorChannel();
     if (!statusChannel) return loggerChannel.send('Statusチャンネルに接続できませんでした');
 
     process.customData = [];

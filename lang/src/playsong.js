@@ -81,7 +81,11 @@ const lang = {
     ageToEnd: {
         ja: (title) => `**${title}**は、年齢制限コンテンツのため再生できません。\n再生を終了します`,
         en: (title) => `**${title}** is age-restricted content and cannot be played. End playback`
-    }
+    },
+    unavailable: {
+        ja: (title) => `**${title}**は、地域制限のため再生できません。\n次の曲に進みます`,
+        en: (title) => `**${title}** is not available in your region. Proceed to the next song`
+    },
 }
 
 module.exports = lang;

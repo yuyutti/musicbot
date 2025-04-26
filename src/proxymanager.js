@@ -8,6 +8,8 @@ class ProxyManager {
         const json = JSON.parse(data);
         this.proxyDefaultList = json.proxy;
         this.proxyList = [...this.proxyDefaultList];
+        this.blockedProxies = new Map();
+        this.blockDuration = 1000 * 60 * 60 * 6; // 6時間ブロック
         this.shuffleProxy();
     }
 
@@ -25,14 +27,50 @@ class ProxyManager {
         this.shuffleProxy();
     }
 
+    blacklistProxy(proxy) {
+        this.blockedProxies.set(proxy, Date.now());
+        console.log(`Proxy ${proxy} is blacklisted.`);
+    }
+
+    isProxyBlocked(proxy) {
+        const blockedAt = this.blockedProxies.get(proxy);
+        if (!blockedAt) return false;
+        if (Date.now() - blockedAt > this.blockDuration) {
+            this.blockedProxies.delete(proxy);
+            return false;
+        }
+        return true;
+    }
+
+    getProxyList() {
+        return this.proxyList;
+    }
+
+    getBlockedProxyList() {
+        return this.blockedProxies;
+    }
+
     getProxy() {
         if (process.env.ENABLE_PROXY === "false") {
             return "";
         }
-        if (this.proxyList.length === 0) {
-            this.resetProxy();
+
+        while (this.proxyList.length > 0) {
+            const proxy = this.proxyList.shift();
+            if (!this.isProxyBlocked(proxy)) {
+                return proxy;
+            }
         }
-        return this.proxyList.shift();
+
+        this.resetProxy();
+        while (this.proxyList.length > 0) {
+            const proxy = this.proxyList.shift();
+            if (!this.isProxyBlocked(proxy)) {
+                return proxy;
+            }
+        }
+
+        return "";
     }
 }
 
