@@ -69,7 +69,7 @@ module.exports = {
             
             const { addedCount, songs, name } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
             if (addedCount === 0) return;
-            
+            console.log( addedCount, songs, name); // undefined undefined undefined
             if (!songs || !Array.isArray(songs)) {
                 errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。 \n\`\`\`${stringType}\n${songString}\`\`\``);
                 return interactionOrMessage.reply({ content: language.notArray[lang], ephemeral: true });

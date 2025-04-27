@@ -9,7 +9,7 @@ class ProxyManager {
         this.proxyDefaultList = json.proxy;
         this.proxyList = [...this.proxyDefaultList];
         this.blockedProxies = new Map();
-        this.blockDuration = 1000 * 60 * 60 * 6; // 6時間ブロック
+        this.blockDuration = 1000 * 60 * 60 * 6;
         this.shuffleProxy();
     }
 
@@ -30,6 +30,7 @@ class ProxyManager {
     blacklistProxy(proxy) {
         this.blockedProxies.set(proxy, Date.now());
         console.log(`Proxy ${proxy} is blacklisted.`);
+        process.dashboardData.proxy.blackList = Array.from(this.blockedProxies);
     }
 
     isProxyBlocked(proxy) {
@@ -47,13 +48,15 @@ class ProxyManager {
     }
 
     getBlockedProxyList() {
-        return this.blockedProxies;
+        return Array.from(this.blockedProxies);
     }
 
     getProxy() {
         if (process.env.ENABLE_PROXY === "false") {
             return "";
         }
+
+        process.dashboardData.proxy.currentList = this.proxyList;
 
         while (this.proxyList.length > 0) {
             const proxy = this.proxyList.shift();

@@ -10,7 +10,7 @@ process.on('message', async (msg) => {
     if (msg.type === "kill") process.exit(0);
     if (msg.type !== "getStream") return;
 
-    const { song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy } = msg;
+    const { song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, itag, proxy } = msg;
 
     let agent = null;
     if (proxy) {
@@ -23,20 +23,20 @@ process.on('message', async (msg) => {
     let delayMs = 6000;
     let attemptCount = 0;
 
-    // const VIDMap = {
-    //     "ZFoJYI7Q4iA": "dlFA0Zq1k2A"
-    // }
+    const VIDMap = {
+        "ZFoJYI7Q4iA": "dlFA0Zq1k2A"
+    }
 
-    // const videoID = song.url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    const videoID = song.url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
     
-    // song.url = videoID && VIDMap[videoID] ? `https://www.youtube.com/watch?v=${VIDMap[videoID]}` : song.url;
+    song.url = videoID && VIDMap[videoID] ? `https://www.youtube.com/watch?v=${VIDMap[videoID]}` : song.url;
 
     while (attemptCount < retries) {
         try {
             attemptCount++;
             process.send({ type: "logger", message: `Playing song (Attempt ${attemptCount}): ${song.title}` });
 
-            // const defaultItagList = [251, 250, 249, 18, 93, 94, 92, 91, 140];
+            // const defaultItagList = [251, 18, 250, 249, 93, 94, 92, 91, 140];
             const defaultItagList = [ 18 ];
             if (currentItagList.length === 0) {
                 currentItagList = [...defaultItagList];
@@ -139,6 +139,11 @@ process.on('message', async (msg) => {
                         process.send({ type: 'log', message: `Stream error: ${err.message}` });
                         if (err.message.includes("403")) {
                             process.send({ type: "handleStreamError", isAgeRestricted: false })
+                            process.exit(1);
+                        }
+                        if (err.message.includes("Invalid format given, did you use")) {
+                            process.send({ type: "itagList", itagList: currentItagList });
+                            process.send({ type: "replaySong" });
                             process.exit(1);
                         }
                         process.exit(1)
