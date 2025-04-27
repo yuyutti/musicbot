@@ -21,7 +21,6 @@ const { joinVC } = require('./vc');
 const filterList = require('./filter');
 
 const { getLoggerChannel, getErrorChannel } = require('./log');
-const { timeStamp } = require('console');
 
 class processKill {
     constructor(child) {
@@ -44,6 +43,9 @@ async function playSong(guildId, song) {
 
     const loggerChannel = getLoggerChannel();
     const errorChannel = getErrorChannel();
+
+    process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
+    process.dashboardData.proxy.currentList = proxyManager.getProxyList();
 
     const voiceStatusFlags = {
         Connecting: false,
@@ -76,11 +78,7 @@ async function playSong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        const isPlaying = await getStream(serverQueue, song);
-        // if (!isPlaying) {
-        //     delete serverQueue._currentlyTryingToPlay;
-        //     return;
-        // }
+        await getStream(serverQueue, song);
         await sendPlayingMessage(serverQueue);
         await pauseTimeout(serverQueue, guildId);
         delete serverQueue._currentlyTryingToPlay;
@@ -139,7 +137,7 @@ async function rePlaySong(guildId, song) {
     serverQueue.time.interval = null;
 
     if (serverQueue.ffmpegProcess) {
-        serverQueue.ffmpegProcess.kill('SIGKILL');
+        serverQueue.ffmpegProcess.kill();
         serverQueue.ffmpegProcess = null;
     }
 
@@ -150,11 +148,7 @@ async function rePlaySong(guildId, song) {
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
     try {
-        const isPlaying = await getStream(serverQueue, song);
-        // if (!isPlaying) {
-        //     delete serverQueue._currentlyTryingToPlay;
-        //     return;
-        // }
+        await getStream(serverQueue, song);
         await sendPlayingMessage(serverQueue);
         await pauseTimeout(serverQueue, guildId);
         delete serverQueue._currentlyTryingToPlay;
@@ -179,9 +173,9 @@ async function getStream(serverQueue, song) {
     const {
         LiveItag,
         time: { current: seekPosition },
-        voiceChannel: { members: { size: vcSize } },
+        voiceChannel: { members: { size: vcSize }, guild: { name: guildName } },
         filter,
-        voiceChannel: { guild: { name: guildName } }
+        itag
     } = serverQueue;
 
     const child = fork(path.join(__dirname, 'playsong_stream.js'), [], {
@@ -195,7 +189,7 @@ async function getStream(serverQueue, song) {
 
     serverQueue.ffmpegProcess = new processKill(child);
 
-    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, proxy });
+    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, itag, proxy });
 
     child.on('message', async msg => {
         if (msg.type === "log") {
@@ -249,9 +243,10 @@ async function getStream(serverQueue, song) {
         }
         if (msg.type === "ready") {
             console.log('readyを受信しました');
+            console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
+
             process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
             process.dashboardData.proxy.currentList = proxyManager.getProxyList();
-            console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
             serverQueue.Filter = serverQueue.filter;
 

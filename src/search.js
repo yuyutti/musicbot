@@ -70,11 +70,20 @@ class WorkerPool {
                 worker.removeAllListeners('message');
                 worker.removeAllListeners('error');
     
-                worker.on('message', (result) => {
-                    if(result.content) {
-                        return data.interactionOrMessage.reply({ content: result.content, ephemeral: result.ephemeral });
+                worker.on('message', (msg) => {
+                    if (msg.type === "getProxy") {
+                        const proxy = proxyManager.getProxy();
+                        worker.postMessage({ type: "proxy", proxy });
+                        return;
                     }
-                    resolve(result);
+                    if (msg.type === "backListProxy") {
+                        proxyManager.blacklistProxy(msg.proxy);
+                        return;
+                    }
+                    if (msg.content) {
+                        return data.interactionOrMessage.reply({ content: msg.content, ephemeral: msg.ephemeral });
+                    }
+                    resolve(msg);
                     this.pool.push(worker);
                 });
     
@@ -113,24 +122,17 @@ if (isMainThread) {
 }
 else {
     (async () => {
-        async function handleSongType(stringType, songString, userId, lang) {
+        async function handleSongType(stringType, songString, userId, lang, agent) {
 
             let songs = [];
             let name = "";
-            let agent = null;
-            if (stringType === "yt_video") {
-                const proxy = proxyManager.getProxy();
-                if (proxy) {
-                    agent = ytdl.createProxyAgent({ uri: proxy });
-                }
-            }
 
             switch (stringType) {
                 case "yt_video":
-                    songs = await addYouTubeVideo(songString, userId, lang, agent);
+                    ({ songs, name } = await addYouTubeVideo(songString, userId, lang, agent));
                     break;
                 case "yt_playlist":
-                    songs = await addYouTubePlaylist(songString, userId, lang);
+                    songs= await addYouTubePlaylist(songString, userId, lang);
                     break;
                 case "search":
                     songs = await addSearchResult(songString, userId, lang);
@@ -156,18 +158,20 @@ else {
 
         async function addYouTubeVideo(songString, userId, lang, agent) {
             try {
-                // const videoInfo = await playdl.video_basic_info(songString);
                 const videoInfo = await ytdl.getBasicInfo(songString, { agent });
-                return [{
+                return { songs: [{
                     title: videoInfo.videoDetails.title,
                     url: songString,
                     duration: videoInfo.videoDetails.lengthSeconds,
                     requestBy: userId
-                }];
+                }], name: videoInfo.videoDetails.title };
             } catch(error) {
                 console.error("YouTube動画の取得に失敗:", error);
+                if(error.message.includes("Sign in to confirm you’re not a bot")) {
+                    return { songs: [], name: "singInToConfirmYouReNotABot" };
+                }
                 parentPort.postMessage({ content: language.notFoundVoiceChannel[lang], ephemeral: true });
-                return 0;
+                return { songs: [], name: "" };
             }
         }
 
@@ -269,17 +273,67 @@ else {
                 }
             }
             return { name, songs: [] };
-        }        
+        }
 
-        try {
-            parentPort.on("message", async (data) => {
-                const { stringType, songString, userId, lang, interactionOrMessage } = data;
-                const result = await handleSongType(stringType, songString, userId, lang, interactionOrMessage);
+        let proxy = null;
+        let taskData = null;
+        let agent = null;
+        let retries = 0;
+
+        parentPort.on("message", async (data) => {
+            if (data.type === "proxy") {
+                proxy = data.proxy;
+                if (proxy) {
+                    proceedTask();
+                } else {
+                    console.log(`No proxy received. Retrying...`);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    retries++;
+                    console.log(`Retrying... Attempt: ${retries}`);
+                    if (retries < 5) {
+                        requestProxy();
+                    }
+                }
+                return;
+            }
+        
+            // 最初のリクエストデータを保持
+            taskData = data;
+            requestProxy(); // プロキシ取りに行く
+        });
+        
+        function requestProxy() {
+            parentPort.postMessage({ type: "getProxy" });
+        }
+        
+        async function proceedTask() {
+            const { stringType, songString, userId, lang, interactionOrMessage } = taskData;
+        
+            try {
+                agent = ytdl.createProxyAgent({ uri: proxy });
+                result = await handleSongType(stringType, songString, userId, lang, agent, interactionOrMessage);
+
+                if (result.name === "singInToConfirmYouReNotABot") {
+                    if (retries === 0) {
+                        parentPort.postMessage({ content: language.singInToConfirmYouReNotABot[lang], ephemeral: true });
+                    }
+                    parentPort.postMessage({ type: "backListProxy", proxy });
+                    proxy = null;
+                    retries++;
+                    if (retries < 5) {
+                        requestProxy();
+                    } else {
+                        parentPort.postMessage({ error: "All proxy attempts failed." });
+                    }
+                    return;
+                }
+        
                 parentPort.postMessage(result);
-            });
-        } catch (error) {
-            console.error("Worker processing error:", error);
-            parentPort.postMessage({ error: error.message });
+        
+            } catch (error) {
+                console.error("Worker processing error:", error);
+                parentPort.postMessage({ error: error.message });
+            }
         }
     })();
 }

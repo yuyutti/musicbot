@@ -30,6 +30,10 @@ const lang = {
         ja: '年齢制限のあるコンテンツ、または暴力的、性的なコンテンツのため再生できません',
         en: 'Cannot be played due to age-restricted, violent or sexual content'
     },
+    singInToConfirmYouReNotABot: {
+        ja: '動画の取得に失敗しました。再試行しています...',
+        en: 'Failed to retrieve the video. Retrying...'
+    },
     notHit: {
         ja: '検索結果が見つかりませんでした',
         en: 'No search results found'
