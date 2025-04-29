@@ -31,9 +31,13 @@ class processKill {
     }
 }
 
+let timeatack
+
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return await cleanupQueue(guildId);
+
+    timeatack = Date.now()
 
     if (serverQueue._currentlyTryingToPlay) {
         console.log(`[playSong] 多重再生防止: ${song.title}`);
@@ -261,13 +265,23 @@ async function getStream(serverQueue, song) {
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-            const FIVE_SECOND_BYTES = 80 * 1024
+            const FIVE_SECOND_BYTES = 10 * 1024
             let accumulatedSizeBytes = 0;
+            let resolved = false;
+
             await new Promise((resolve, reject) => {
-                audioStream.on('data', (chunk) => {
+                const onData = (chunk) => {
+                    if (resolved) return; // 一回でもresolveしたら無視する
                     accumulatedSizeBytes += chunk.length;
-                    if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) resolve();
-                });
+                    if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) {
+                        resolved = true;
+                        const elapsedMs = Date.now() - timeatack;
+                        console.log(`再生開始までに ${(elapsedMs / 1000).toFixed(1)}秒かかりました`);
+                        resolve();
+                    }
+                };
+            
+                audioStream.on('data', onData);
                 
                 audioStream.on('error', async (error) => {
                     if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
@@ -453,7 +467,7 @@ async function sendPlayingMessage(serverQueue) {
                 }
                 else {
                     serverQueue.playingMessage.edit({ 
-                        content: language.playing_preparation[serverQueue.language], 
+                        content: language.playing_region_preparation[serverQueue.language], 
                         embeds: [],
                         components: []
                     });
@@ -463,7 +477,7 @@ async function sendPlayingMessage(serverQueue) {
                     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
                 }
                 else {
-                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+                    serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_region_preparation[serverQueue.language]);
                 }
             }
         } else {
@@ -471,7 +485,7 @@ async function sendPlayingMessage(serverQueue) {
                 serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
             }
             else {
-                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_preparation[serverQueue.language]);
+                serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_region_preparation[serverQueue.language]);
             }
         }
     } catch (error) {

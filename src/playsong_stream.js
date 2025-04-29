@@ -62,8 +62,8 @@ process.on('message', async (msg) => {
                     const stream = ytdl.downloadFromInfo(info, {
                         format,
                         agent,
-                        highWaterMark: 1024 * 1024,
-                        dlChunkSize: 128 * 1024
+                        highWaterMark: 512 * 1024,
+                        dlChunkSize: 64 * 1024
                     });
 
                     currentItagList = [...defaultItagList];
@@ -150,7 +150,6 @@ process.on('message', async (msg) => {
                     });
 
                     process.send({ type: "log", message: `itag ${currentItag} の stream を取得しました` });
-                    process.send({ type: "log", message: `FFmpeg で変換を開始します` });
 
                     ffmpegProcess = ffmpeg(stream)
                         .setStartTime(seekPosition)
@@ -207,9 +206,6 @@ process.on('message', async (msg) => {
                         });
 
                         const outputStream = ffmpegProcess.pipe(process.stdout, { end: true });
-                        
-                        
-                        process.send({ type: "log", message: `FFmpeg での変換を開始しました` });
 
                         await new Promise((resolve, reject) => {
                             outputStream.once('end', () => {

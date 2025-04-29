@@ -283,7 +283,7 @@ else {
         parentPort.on("message", async (data) => {
             if (data.type === "proxy") {
                 proxy = data.proxy;
-                if (proxy) {
+                if (proxy !== null && proxy !== undefined) {
                     proceedTask();
                 } else {
                     console.log(`No proxy received. Retrying...`);
@@ -310,7 +310,9 @@ else {
             const { stringType, songString, userId, lang, interactionOrMessage } = taskData;
         
             try {
-                agent = ytdl.createProxyAgent({ uri: proxy });
+                if (proxy) {
+                    agent = ytdl.createProxyAgent({ uri: proxy });
+                }
                 result = await handleSongType(stringType, songString, userId, lang, agent, interactionOrMessage);
 
                 if (result.name === "singInToConfirmYouReNotABot") {

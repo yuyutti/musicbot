@@ -46,6 +46,10 @@ const lang = {
         ja: '再生する準備をしています...',
         en: 'Preparing to play...'
     },
+    playing_region_preparation: {
+        ja: '再生する準備をしています...\n:warning:通信経路により再生までに7秒～20秒、別の通信経路を検索している場合最大1分程度時間がかかる可能性があります。\nそのままお待ちください。:warning:',
+        en: 'Preparing to play... \nDue to the communication route, it may take 7 to 20 seconds to play, and if you are searching for another communication route, it may take up to 1 minute. \nPlease wait as it is.'
+    },
     playing_LIVE_preparation: {
         ja: '再生する準備をしています... \nライブ配信のため、再生までに時間がかかる場合があります。',
         en: 'Preparing to play... \nIt may take some time to play due to live distribution.'
