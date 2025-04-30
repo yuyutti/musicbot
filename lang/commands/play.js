@@ -75,8 +75,8 @@ const lang = {
         en: 'An error occurred while retrieving data, please try again'
     },
     maintenanceMode: {
-        ja: '📢 メンテナンスのお知らせ 📢\n\nプラットフォーム側の問題により、現在再生できない状態です。\nメンテナンス中は、BOTが「退席中」のステータスになります。\n\nBOTのステータスがオンラインに戻り次第、ご利用いただけます。\nしばらくの間、ご不便をおかけいたしますが、何卒よろしくお願いいたします。\n\n開始日時: 3月27日 00:00 JST\n復旧時期: 未定',
-        en: '📢 Maintenance 📢\n\nDue to a problem on the platform side, playback is not possible.\nDuring maintenance, the status will be displayed as idle.\n\nYou can use it as soon as the status of the BOT is back online.\nWe apologize for any inconvenience this may cause you.\n\nStart time: 3/27 00:00 JST\nRecovery time: undecided'
+        ja: '📢 メンテナンスのお知らせ 📢\n\nプラットフォーム側の問題により、現在再生できない状態です。\nメンテナンス中は、BOTが「退席中」のステータスになります。\n\nBOTのステータスがオンラインに戻り次第、ご利用いただけます。\nしばらくの間、ご不便をおかけいたしますが、何卒よろしくお願いいたします。\n\n開始日時: 4月30日 14:00 JST\n復旧時期: 未定',
+        en: '📢 Maintenance 📢\n\nDue to a problem on the platform side, playback is not possible.\nDuring maintenance, the status will be displayed as idle.\n\nYou can use it as soon as the status of the BOT is back online.\nWe apologize for any inconvenience this may cause you.\n\nStart time: 4/27\\30 14:00 JST\nRecovery time: undecided'
     }    
 }
 
