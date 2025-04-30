@@ -23,13 +23,13 @@ process.on('message', async (msg) => {
     let delayMs = 6000;
     let attemptCount = 0;
 
-    const VIDMap = {
-        "ZFoJYI7Q4iA": "dlFA0Zq1k2A"
-    }
+    // const VIDMap = {
+    //     "ZFoJYI7Q4iA": "dlFA0Zq1k2A"
+    // }
 
-    const videoID = song.url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
+    // const videoID = song.url.match(/(?:youtube\.com\/(?:[^/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)?.[1];
     
-    song.url = videoID && VIDMap[videoID] ? `https://www.youtube.com/watch?v=${VIDMap[videoID]}` : song.url;
+    // song.url = videoID && VIDMap[videoID] ? `https://www.youtube.com/watch?v=${VIDMap[videoID]}` : song.url;
 
     while (attemptCount < retries) {
         try {
@@ -41,15 +41,17 @@ process.on('message', async (msg) => {
             if (currentItagList.length === 0) {
                 currentItagList = [...defaultItagList];
             }
+            process.send({ type:"log", message: "YouTubeからの情報取得しています" })
 
             const info = await ytdl.getInfo(song.url, { agent });
             const formats = info.formats;
+            process.send({ type: "log", message: `YouTubeからの情報取得が完了しました` });
 
             while (currentItagList.length > 0) {                
                 try {
                     currentItag = currentItagList[0];
                     process.send({ type:"itag", itag: currentItag });
-                    
+
                     const format = formats.find(f => f.itag === currentItag);
                     
                     if (!format) {

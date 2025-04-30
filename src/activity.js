@@ -3,7 +3,7 @@ const { isOfflineMode } = require('../SQL/connection');
 
 
 let clientInstant = null
-process.env.IsMaintenance = false;
+process.env.IsMaintenance = true ;
 function setClientInstant(client) {
     clientInstant = client
 
