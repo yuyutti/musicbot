@@ -287,7 +287,7 @@ else {
                     proceedTask();
                 } else {
                     console.log(`No proxy received. Retrying...`);
-                    await new Promise(resolve => setTimeout(resolve, 5000));
+                    await new Promise(resolve => setTimeout(resolve, 500));
                     retries++;
                     console.log(`Retrying... Attempt: ${retries}`);
                     if (retries < 5) {

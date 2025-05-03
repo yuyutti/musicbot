@@ -98,7 +98,7 @@ async function playSong(guildId, song) {
 }
 
 async function rePlaySong(guildId, song) {
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return await cleanupQueue(guildId);
@@ -265,7 +265,7 @@ async function getStream(serverQueue, song) {
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-            const FIVE_SECOND_BYTES = 10 * 1024
+            const FIVE_SECOND_BYTES = 3 * 1024
             let accumulatedSizeBytes = 0;
             let resolved = false;
 

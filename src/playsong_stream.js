@@ -158,12 +158,19 @@ process.on('message', async (msg) => {
                         .noVideo()
                         .audioFilters(serverQueue_filter.filter)
                         .audioFrequency(48000)
+                        .inputOptions([
+                            '-re',
+                            '-analyzeduration', '0',
+                            '-probesize', '32',
+                            '-fflags', 'nobuffer',
+                            '-flags', 'low_delay',
+                        ])
                         .outputOptions([
                             '-c:a', 'libopus',
                             '-reconnect_at_eof', '1',
                             '-reconnect_streamed', '1',
                             '-fflags', '+genpts',
-                            '-loglevel', 'error'
+                            '-loglevel', 'error',
                         ])
                         .format('opus')
                         .on('start', () => {
