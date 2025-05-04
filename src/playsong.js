@@ -98,7 +98,7 @@ async function playSong(guildId, song) {
 }
 
 async function rePlaySong(guildId, song) {
-    await new Promise(resolve => setTimeout(resolve, 5000));
+    await new Promise(resolve => setTimeout(resolve, 1500));
 
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return await cleanupQueue(guildId);
@@ -230,6 +230,14 @@ async function getStream(serverQueue, song) {
                 await serverQueue.textChannel.send(message);
             }
         }
+        if (msg.type === "ytdlok") {
+            let message = language.playing_preparation_ytOK[serverQueue.language];
+            try {
+                await serverQueue.playingMessage.edit(message);
+            } catch (error) {
+                await serverQueue.textChannel.send(message);
+            }
+        }
         if (msg.type === "downloading") {
             const kb = msg.size
             const kbps = Math.round((kb * 8) / 1000);
@@ -246,7 +254,12 @@ async function getStream(serverQueue, song) {
             rePlaySong(guildId, song);
         }
         if (msg.type === "ready") {
-            console.log('readyを受信しました');
+            let message = language.playing_preparation_streamingOK[serverQueue.language];
+            try {
+                await serverQueue.playingMessage.edit(message);
+            } catch (error) {
+                await serverQueue.textChannel.send(message);
+            }
             console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
             process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
@@ -265,7 +278,7 @@ async function getStream(serverQueue, song) {
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-            const FIVE_SECOND_BYTES = 10 * 1024
+            const FIVE_SECOND_BYTES = 3 * 1024
             let accumulatedSizeBytes = 0;
             let resolved = false;
 
