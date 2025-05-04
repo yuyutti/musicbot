@@ -46,6 +46,7 @@ process.on('message', async (msg) => {
             const info = await ytdl.getInfo(song.url, { agent });
             const formats = info.formats;
             process.send({ type: "log", message: `YouTubeからの情報取得が完了しました` });
+            process.send({ type: "ytdlok"});
 
             while (currentItagList.length > 0) {                
                 try {

@@ -230,6 +230,14 @@ async function getStream(serverQueue, song) {
                 await serverQueue.textChannel.send(message);
             }
         }
+        if (msg.type === "ytdlok") {
+            let message = language.playing_preparation_ytOK[serverQueue.language];
+            try {
+                await serverQueue.playingMessage.edit(message);
+            } catch (error) {
+                await serverQueue.textChannel.send(message);
+            }
+        }
         if (msg.type === "downloading") {
             const kb = msg.size
             const kbps = Math.round((kb * 8) / 1000);
@@ -246,7 +254,12 @@ async function getStream(serverQueue, song) {
             rePlaySong(guildId, song);
         }
         if (msg.type === "ready") {
-            console.log('readyを受信しました');
+            let message = language.playing_preparation_streamingOK[serverQueue.language];
+            try {
+                await serverQueue.playingMessage.edit(message);
+            } catch (error) {
+                await serverQueue.textChannel.send(message);
+            }
             console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
             process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
