@@ -65,7 +65,7 @@ process.on('message', async (msg) => {
                     const stream = ytdl.downloadFromInfo(info, {
                         format,
                         agent,
-                        highWaterMark: 512 * 1024,
+                        highWaterMark: 2 ** 31 - 2,
                         dlChunkSize: 64 * 1024
                     });
 
