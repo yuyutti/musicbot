@@ -70,6 +70,10 @@ const lang = {
         ja: (albumName, addedCount)=> `**${albumName}** プレイリストから${addedCount}件がキューに追加されました`,
         en: (albumName, addedCount)=> `${addedCount} songs have been added to the queue from the **${albumName}** playlist`
     },
+    addedArtist: {
+        ja: (albumName, addedCount)=> `**${albumName}** アーティストプレイリストから${addedCount}件がキューに追加されました`,
+        en: (albumName, addedCount)=> `${addedCount} songs have been added to the queue from the **${albumName}** artist`
+    },
     notArray: {
         ja: 'データ取得時にエラーが発生しました、もう一度お試しください',
         en: 'An error occurred while retrieving data, please try again'
