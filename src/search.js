@@ -1,7 +1,8 @@
 const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
 const playdl = require("play-dl");
-const language = require("../lang/commands/play");
 
+const language = require("../lang/commands/play");
+const { getData, getPreview, getTracks, getDetails } = require('spotify-url-info')(fetch)
 const ytdl = require("@distube/ytdl-core");
 const proxyManager = require("./proxymanager");
 
@@ -146,6 +147,9 @@ else {
                 case "sp_playlist":
                     ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
                     break;
+                case "sp_artist":
+                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
+                    break;
                 case false:
                     parentPort.postMessage({ content: language.unLink[lang], ephemeral: true });
                     break;
@@ -203,76 +207,82 @@ else {
         }
 
         async function addSpotifyTrack(songString, userId, lang) {
-            const sp_track = await playdl.spotify(songString);
-            const trackName = sp_track.name;
-            const sp_trackSearchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: lang });
-            if (sp_trackSearchResult.length > 0) {
-                const video = sp_trackSearchResult[0];
-                return [{
-                    title: video.title,
-                    url: video.url,
-                    duration: video.durationInSec,
-                    requestBy: userId
-                }];
-            }
-            else {
+            try {
+                const spTrack = await getPreview(songString);
+                const trackName = spTrack.title;
+                const artistName = spTrack.artist;
+        
+                const ytQuery = `${trackName} ${artistName}`;
+                const sp_trackSearchResult = await playdl.search(ytQuery, {
+                    source: { youtube: "video" },
+                    limit: 1,
+                    language: lang
+                });
+        
+                if (sp_trackSearchResult.length > 0) {
+                    const video = sp_trackSearchResult[0];
+                    return [{
+                        title: video.title,
+                        url: video.url,
+                        duration: video.durationInSec,
+                        requestBy: userId
+                    }];
+                } else {
+                    parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
+                    return 0;
+                }
+            } catch (err) {
+                console.error("Failed to load Spotify track:", err);
                 parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
                 return 0;
             }
         }
 
         async function addSpotifyTrackListToQueue(songString, userId, lang) {
-            const result = await playdl.spotify(songString);
-            const name = result.name;
-            const artist = result.artists && result.artists.length > 0 ? result.artists[0].name : "";
-            const resultTracksList = result.fetched_tracks.get('1');
+            try {
+                const result = await getDetails(songString);
+                const name = result.preview.title;
+                const tracks = result.tracks;
         
-            if (resultTracksList && resultTracksList.length > 0) {
-                const firstTrack = resultTracksList[0];
-                const firstTrackName = firstTrack.name;
-                const firstSearchResult = await playdl.search(firstTrackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: lang });
+                if (!tracks || tracks.length === 0) return { name, songs: [] };
         
-                if (firstSearchResult.length > 0) {
-                    const firstVideo = firstSearchResult[0];
-                    const songs = [{
-                        title: firstVideo.title,
-                        url: firstVideo.url,
-                        duration: firstVideo.durationInSec,
-                        requestBy: userId
-                    }];
-        
-                    const trackPromises = resultTracksList.slice(1).map(async spotifyTrack => {
-                        const trackName = spotifyTrack.name;
-                        let searchResult = await playdl.search(trackName + ' ' + artist, { source: { youtube: "video" }, limit: 1, language: lang });
-        
-                        if (searchResult.length === 0) {
-                            console.log(`No results found for track: ${trackName} by artist: ${artist}, retrying without artist`);
-                            searchResult = await playdl.search(trackName, { source: { youtube: "video" }, limit: 1, language: lang });
-                        }
-
-                        if (searchResult.length > 0) {
-                            const video = searchResult[0];
-                            return {
-                                title: video.title,
-                                url: video.url,
-                                duration: video.durationInSec,
-                                requestBy: userId
-                            };
-                        }
-        
-                        return null;
+                const songs = await Promise.all(tracks.map(async track => {
+                    const trackName = track.name;
+                    const artistName = track.artists?.[0]?.name || "";
+                    let ytResult = await playdl.search(`${trackName} ${artistName}`, {
+                        source: { youtube: "video" },
+                        limit: 1,
+                        language: lang
                     });
         
-                    const tracks = await Promise.all(trackPromises);
-                    const validTracks = tracks.filter(track => track !== null);
-                    songs.push(...validTracks);
-                    return { name, songs };
-                } else {
-                    parentPort.postMessage({ content: language.aNotHit[lang](firstTrackName), ephemeral: true });
-                    return { name, songs: [] };
-                }
+                    if (ytResult.length === 0) {
+                        console.log(`No results for ${trackName}, retrying...`);
+                        ytResult = await playdl.search(trackName, {
+                            source: { youtube: "video" },
+                            limit: 1,
+                            language: lang
+                        });
+                    }
+        
+                    if (ytResult.length > 0) {
+                        const video = ytResult[0];
+                        return {
+                            title: video.title,
+                            url: video.url,
+                            duration: video.durationInSec,
+                            requestBy: userId
+                        };
+                    }
+        
+                    return null;
+                }));
+        
+                return { name, songs: songs.filter(s => s !== null) };
+            } catch (err) {
+                console.error("Failed to load Spotify track list:", err);
+                parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
+                return { name: 'Unknown', songs: [] };
             }
-            return { name, songs: [] };
         }
 
         let proxy = null;

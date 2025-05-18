@@ -12,8 +12,7 @@ const language = require('../lang/commands/play');
 const { getLoggerChannel, getErrorChannel } = require('../src/log');
 
 const singleLists = ['yt_video', 'search', 'sp_track'];
-const multiLists = ['yt_playlist', 'sp_album', 'sp_playlist'];
-const spotifyLists = ['sp_track', 'sp_album', 'sp_playlist'];
+const multiLists = ['yt_playlist', 'sp_album', 'sp_playlist', 'sp_artist'];
 
 module.exports = {
     data: {
@@ -57,15 +56,46 @@ module.exports = {
                 const permissions = voiceChannel.permissionsFor(interactionOrMessage.client.user);
                 if (!checkPermissions(permissions, interactionOrMessage, lang)) return;
             }
+
             let stringType;
-            try {
-                stringType = await playdl.validate(songString);
+            const input = songString.trim();
+            
+            if (!input.startsWith("http")) {
+                stringType = "search";
+            } else {
+                try {
+                    const url = new URL(input);
+                    const host = url.hostname.replace(/^www\./, '');
+            
+                    if (["youtube.com", "youtu.be"].includes(host)) {
+                        if (url.pathname.startsWith("/playlist") || url.searchParams.has("list")) {
+                            stringType = "yt_playlist";
+                        } else if (url.pathname.startsWith("/watch") || host === "youtu.be" || url.pathname.startsWith("/embed")) {
+                            stringType = "yt_video";
+                        } else {
+                            stringType = false;
+                        }
+                    } else if (host === "open.spotify.com" || host === "play.spotify.com") {
+                        const pathParts = url.pathname.split("/").filter(Boolean);
+                        const [type, id] = pathParts.slice(-2);
+
+                        switch (type) {
+                            case "track": stringType = "sp_track"; break;
+                            case "playlist": stringType = "sp_playlist"; break;
+                            case "album": stringType = "sp_album"; break;
+                            case "artist": stringType = "sp_artist"; break;
+                            default: stringType = false;
+                        }
+                    } else {
+                        stringType = "url_unknown";
+                    }
+            
+                } catch (error) {
+                    stringType = "search";
+                }
             }
-            catch (error) {
-                stringType = "so";
-            }
+
             console.log('stringType:', stringType);
-            if (spotifyLists.includes(stringType) && playdl.is_expired()) await playdl.refreshToken();
             
             const { addedCount, songs, name } = await handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage);
             if (addedCount === 0) return;
@@ -118,19 +148,29 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
         }
     }
     else if (multiLists.includes(stringType)) {
+        console.log('multiLists:', stringType);
         const message = stringType === "yt_playlist"
-            ? language.addToPlaylist[lang](addedCount) 
-            : stringType === "sp_album"
-            ? language.addedAlbum[lang](albumName, addedCount)
-            : language.addedPlaylist[lang](albumName, addedCount);
-
-        await interactionOrMessage.reply({ content: message });
-        if (serverQueue.songs.length === addedCount) {
-            playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
-            loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が**${addedCount}**件追加され、再生を開始します`);
-        } else {
-            loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${stringType === "yt_playlist" ? 'YouTubeプレイリスト' : stringType === "sp_album" ? 'Spotifyアルバム' : 'Spotifyプレイリスト'}が**${addedCount}**件追加されました`);
-        }
+        ? language.addToPlaylist[lang](addedCount)
+        : stringType === "sp_album"
+        ? language.addedAlbum[lang](albumName, addedCount)
+        : stringType === "sp_artist"
+        ? language.addedArtist[lang](albumName, addedCount)
+        : language.addedPlaylist[lang](albumName, addedCount);
+    console.log('message:', message);
+    await interactionOrMessage.reply({ content: message });
+    
+    const sourceLabel =
+        stringType === "yt_playlist" ? 'YouTubeプレイリスト' :
+        stringType === "sp_album"    ? 'Spotifyアルバム' :
+        stringType === "sp_artist"   ? 'Spotifyアーティストプレイリスト' :
+                                       'Spotifyプレイリスト';
+    console.log('sourceLabel:', sourceLabel);
+    if (serverQueue.songs.length === addedCount) {
+        playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
+        loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${sourceLabel}が**${addedCount}**件追加され、再生を開始します`);
+    } else {
+        loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${sourceLabel}が**${addedCount}**件追加されました`);
+    }
     }
 }
 
