@@ -229,6 +229,7 @@ async function getStream(serverQueue, song) {
             } catch (error) {
                 await serverQueue.textChannel.send(message);
             }
+            handleIdleState(serverQueue, serverQueue.guildId);
         }
         if (msg.type === "ytdlok") {
             let message = language.playing_preparation_ytOK[serverQueue.language];
