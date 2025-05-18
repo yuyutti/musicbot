@@ -38,7 +38,7 @@ module.exports = {
 
         // メンテナンスモード
         if (process.env.IsMaintenance === 'true') {
-            return interactionOrMessage.editReply(language.maintenanceMode[lang]);
+            return interactionOrMessage.reply(language.maintenanceMode[lang]);
         }
 
         try {
@@ -49,7 +49,7 @@ module.exports = {
 
             if (!voiceChannel) {
                 loggerChannel.send(`${interactionOrMessage.guild.name}でボイスチャンネルに参加しない状態でplayコマンドが実行されました`);
-                return interactionOrMessage.editReply({ content: language.unVoiceChannel[lang] });
+                return safeReply(interactionOrMessage, language.unVoiceChannel[lang]);
             }
 
             let serverQueue = musicQueue.get(interactionOrMessage.guildId);
@@ -106,7 +106,7 @@ module.exports = {
 
             if (!songs || !Array.isArray(songs)) {
                 errorChannel.send(`Error: 楽曲取得時に${interactionOrMessage.guild.name}で配列未定義エラーが発生しました。 \n\`\`\`${stringType}\n${songString}\`\`\``);
-                return interactionOrMessage.editReply({ content: language.notArray[lang], ephemeral: true });
+                return safeReply(interactionOrMessage, language.notArray[lang]);
             }
             
             serverQueue.songs.push(...songs);
@@ -145,7 +145,7 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
     const isPlaying = serverQueue.songs.length === 1;
 
     if (singleLists.includes(stringType)) {
-        await interactionOrMessage.editReply({ content: isPlaying ? language.addPlaying[lang](serverQueue.songs[0].title) : language.added[lang](serverQueue.songs.slice(-1)[0].title) });
+        await safeReply(interactionOrMessage, isPlaying ? language.addPlaying[lang](serverQueue.songs[0].title) : language.added[lang](serverQueue.songs.slice(-1)[0].title));
         loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**に**${serverQueue.songs.slice(-1)[0].title}**を追加しました`);
         if (isPlaying) {
             playSong(interactionOrMessage.guildId, serverQueue.songs[0]);
@@ -161,7 +161,7 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
         ? language.addedArtist[lang](albumName, addedCount)
         : language.addedPlaylist[lang](albumName, addedCount);
     console.log('message:', message);
-    await interactionOrMessage.editReply({ content: message });
+    await safeReply(interactionOrMessage, message);
     
     const sourceLabel =
         stringType === "yt_playlist" ? 'YouTubeプレイリスト' :
@@ -175,6 +175,14 @@ async function handleSongAddition(serverQueue, stringType, addedCount, interacti
     } else {
         loggerChannel.send(`playing: **${interactionOrMessage.guild.name}**で${sourceLabel}が**${addedCount}**件追加されました`);
     }
+    }
+}
+
+async function safeReply(interactionOrMessage, content) {
+    if (interactionOrMessage.isCommand?.()) {
+        return interactionOrMessage.editReply(typeof content === 'string' ? { content } : content);
+    } else {
+        return interactionOrMessage.reply(typeof content === 'string' ? { content } : content);
     }
 }
 
