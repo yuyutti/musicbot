@@ -269,7 +269,7 @@ setInterval(() => {
 
 process.on('uncaughtException', (err) => {
     console.error(err);
-    errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
+    // errorChannel.send(`uncaughtException: \n\`\`\`${err}\`\`\``);
 });
 
 client.login(process.env.DISCORD_TOKEN);
