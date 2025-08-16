@@ -44,10 +44,26 @@ async function createTable() {
         console.log('Database connection successful');
     }
     catch (error) {
-        offlineMode = true;
-        console.log('Switching to offline mode.');
+        console.error('Error creating or altering table:', error.message);
+        throw error;
     }
 }
+
+async function checkDatabaseHeartbeat() {
+    try {
+        await connection.query('SELECT 1');
+        if (offlineMode) {
+            console.log('Database connection restored.');
+            offlineMode = false;
+        }
+    } catch (error) {
+        if (!offlineMode) {
+            console.error('Database connection lost.', error.message);
+            offlineMode = true;
+        }
+    }
+}
+setInterval(checkDatabaseHeartbeat, 10000);
 
 function PoolMonitor() {
     process.dashboardData.SQLpool = {
