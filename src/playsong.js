@@ -1,16 +1,16 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
 const { Throttle } = require('stream-throttle');
-const ytdl = require('@distube/ytdl-core');
+const ytdl = require('@nuclearplayer/ytdl-core');
 const fs = require('fs');
 const path = require('path');
-const { fork } = require('child_process');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static'); 
 ffmpeg.setFfmpegPath(ffmpegPath);
 const { volume, lang, filter: getFilter, LogChannel } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
+const { ForkPool } = require('./playsong_pool');
 const proxyManager = require('./proxymanager');
 const { queue: musicQueue } = require('./musicQueue');
 const { autoplay } = require('./autoplay');
@@ -26,10 +26,31 @@ class processKill {
     constructor(child) {
         this.child = child;
     }
+
     kill() {
-        this.child.kill('SIGKILL');
+        if (!this.child) return;
+
+        // ここでイベント全部外す
+        this.child.removeAllListeners('message');
+        this.child.removeAllListeners('error');
+        this.child.removeAllListeners('exit');
+
+        try {
+            this.child.send({ type: 'kill' });
+        } catch {}
+
+        setTimeout(() => {
+            try { this.child.kill('SIGKILL'); } catch {}
+        }, 500);
     }
 }
+
+const pool = new ForkPool({
+    workerPath: path.join(__dirname, 'playsong_stream.js'),
+    warmMin: 2,
+    hardMax: 200,
+    idleTtlMs: 60 * 60 * 1000,
+});
 
 let timeatack
 
@@ -70,10 +91,7 @@ async function playSong(guildId, song) {
     serverQueue.itag = null;
     delete serverQueue.playSongRetryCount;
 
-    if (serverQueue.ffmpegProcess) {
-        serverQueue.ffmpegProcess.kill('SIGKILL');
-        serverQueue.ffmpegProcess = null;
-    }
+    serverQueue.ffmpegProcess = null;
 
     updateActivity();
     updatePlayingGuild();
@@ -140,10 +158,7 @@ async function rePlaySong(guildId, song) {
     clearInterval(serverQueue.trafficLogInterval);
     serverQueue.time.interval = null;
 
-    if (serverQueue.ffmpegProcess) {
-        serverQueue.ffmpegProcess.kill();
-        serverQueue.ffmpegProcess = null;
-    }
+    serverQueue.ffmpegProcess = null;
 
     updateActivity();
     updatePlayingGuild();
@@ -182,85 +197,112 @@ async function getStream(serverQueue, song) {
         itag
     } = serverQueue;
 
-    const child = fork(path.join(__dirname, 'playsong_stream.js'), [], {
+    const child = pool.acquire({
         env: {
-            ...process.env,
             GLOBAL_AGENT_HTTP_PROXY: proxy,
-            HTTP_PROXY: proxy
+            HTTP_PROXY: proxy,
         },
-        stdio: ['pipe', 'pipe', 'pipe', 'ipc'],
+    });
+    if (!child) throw new Error('No worker available');
+
+    child.once('error', (err) => {
+        console.warn('[worker error before send]', err?.message || err);
+        try { getErrorChannel().send(`worker error before send: ${err?.message || err}`); } catch {}
+        safeRelease();
     });
 
     serverQueue.ffmpegProcess = new processKill(child);
 
-    child.send({ type: "getStream", song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, itag, proxy });
+    let released = false;
+    const safeRelease = () => {
+        if (released) return;
+        released = true;
+        try { clearTimeout(readyTimer); } catch {}
+        try { pool.release(child); } catch {}
+        child.removeAllListeners('message');
+        child.removeAllListeners('error');
+        child.removeAllListeners('exit');
+        serverQueue.ffmpegProcess = null;
+    };
+
+
+    try {
+        child.send({
+            type: "getStream",
+            song, LiveItag, seekPosition, vcSize, filter, filterList, currentFilter, guildName, itag, proxy
+        });
+    } catch (err) {
+        console.warn('[worker send failed]', err?.message || err);
+        try { getErrorChannel().send(`worker send failed: ${err?.message || err}`); } catch {}
+        safeRelease();
+        return;
+    }
+
+    let gotReady = false;
+
+    const readyTimer = setTimeout(() => {
+        if (gotReady) return;
+        console.warn('worker ready timeout');
+        try { getErrorChannel().send('worker ready timeout'); } catch {}
+        safeRelease();
+    }, 20_000);
 
     child.on('message', async msg => {
-        if (msg.type === "log") {
-            console.log(msg.message);
-        }
-        if (msg.type === "logger") {
-            console.log(msg.message);
-            getLoggerChannel().send(msg.message);
-        }
-        if (msg.type === "error") {
-            console.log(msg.message);
-            getErrorChannel().send(msg.message);
-        }
-        if (msg.type === "itag") {
-            serverQueue.itag = msg.itag;
-        }
-        if (msg.type === "itagList") {
-            serverQueue.itagList = msg.itagList;
-        }
+        if (msg.type === 'ready') { gotReady = true; clearTimeout(readyTimer); }
+
+        if (msg.type === "log") console.log(msg.message);
+        if (msg.type === "logger") { console.log(msg.message); getLoggerChannel().send(msg.message); }
+        if (msg.type === "error")  { console.log(msg.message); safeRelease();  getErrorChannel().send(msg.message); return; }
+
+        if (msg.type === "itag")     serverQueue.itag = msg.itag;
+        if (msg.type === "itagList") serverQueue.itagList = msg.itagList;
+        if (msg.type === "filter")   serverQueue.filter = msg.filter;
+
         if (msg.type === "handleStreamError") {
             handleStreamError(serverQueue, msg.isAgeRestricted);
+            safeRelease(); 
+            return;
         }
+
         if (msg.type === "replaySong") {
             rePlaySong(serverQueue.guildId, serverQueue.songs[0]);
+            safeRelease();
+            return;
         }
-        if (msg.type === "filter") {
-            serverQueue.filter = msg.filter;
-        }
-        if(msg.type === "unavailable") {
+
+        if (msg.type === "unavailable") {
             let message = language.unavailable[serverQueue.language](serverQueue.songs[0].title);
-            try {
-                await serverQueue.playingMessage.edit(message);
-            } catch (error) {
-                await serverQueue.textChannel.send(message);
-            }
+            try { await serverQueue.playingMessage.edit(message); }
+            catch { await serverQueue.textChannel.send(message); }
             handleIdleState(serverQueue, serverQueue.guildId);
+            safeRelease();
+            return;
         }
+
         if (msg.type === "ytdlok") {
             let message = language.playing_preparation_ytOK[serverQueue.language];
-            try {
-                await serverQueue.playingMessage.edit(message);
-            } catch (error) {
-                await serverQueue.textChannel.send(message);
-            }
+            try { await serverQueue.playingMessage.edit(message); }
+            catch { await serverQueue.textChannel.send(message); }
         }
+
         if (msg.type === "downloading") {
-            const kb = msg.size
+            const kb = msg.size;
             const kbps = Math.round((kb * 8) / 1000);
-            process.dashboardData.traffic.push({
-                timeStamp: Date.now(),
-                guildId: serverQueue.guildId,
-                kbps: kbps,
-                kb: kb,
-                rs: "s"
-            })
+            process.dashboardData.traffic.push({ timeStamp: Date.now(), guildId: serverQueue.guildId, kbps, kb, rs: "s" });
         }
-        if(msg.type === "singInToConfirmYouReNotABot") {
+
+        if (msg.type === "singInToConfirmYouReNotABot") {
             proxyManager.blacklistProxy(proxy);
             rePlaySong(guildId, song);
+            safeRelease();
+            return;
         }
+
         if (msg.type === "ready") {
             let message = language.playing_preparation_streamingOK[serverQueue.language];
-            try {
-                await serverQueue.playingMessage.edit(message);
-            } catch (error) {
-                await serverQueue.textChannel.send(message);
-            }
+            try { await serverQueue.playingMessage.edit(message); }
+            catch { await serverQueue.textChannel.send(message); }
+
             console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
 
             process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
@@ -268,56 +310,56 @@ async function getStream(serverQueue, song) {
 
             serverQueue.Filter = serverQueue.filter;
 
-            const throttleRate = 320 * 1024 / 8; // 320kbps
+            const throttleRate = 320 * 1024 / 8;
             serverQueue.Throttle = new Throttle({ rate: throttleRate });
 
             const audioStream = child.stdout.pipe(serverQueue.Throttle);
-            
+
             serverQueue.resource = createAudioResource(audioStream, {
-                inputType: StreamType.WebmOpus,  // WebmOpusが適切でない場合、他の形式に変更
-                inlineVolume: true
+            inputType: StreamType.WebmOpus,
+            inlineVolume: true
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
 
-            const FIVE_SECOND_BYTES = 3 * 1024
+            const FIVE_SECOND_BYTES = 8 * 1024;
             let accumulatedSizeBytes = 0;
             let resolved = false;
 
             await new Promise((resolve, reject) => {
-                const onData = (chunk) => {
-                    if (resolved) return; // 一回でもresolveしたら無視する
-                    accumulatedSizeBytes += chunk.length;
-                    if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) {
-                        resolved = true;
-                        const elapsedMs = Date.now() - timeatack;
-                        console.log(`再生開始までに ${(elapsedMs / 1000).toFixed(1)}秒かかりました`);
-                        resolve();
-                    }
-                };
-            
-                audioStream.on('data', onData);
-                
-                audioStream.on('error', async (error) => {
-                    if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
-                    console.error('FFmpeg stream error:', error);
-                    getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
-                    handleStreamError(serverQueue, false);
-                    reject(error);
-                });        
-            
-                audioStream.on('close', () => {
-                    resolve();
-                });
-            
-                audioStream.on('end', () => {
-                    resolve();
-                });
+            const onData = (chunk) => {
+                if (resolved) return;
+                accumulatedSizeBytes += chunk.length;
+                if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) {
+                resolved = true;
+                const elapsedMs = Date.now() - timeatack;
+                console.log(`再生開始までに ${(elapsedMs / 1000).toFixed(1)}秒かかりました`);
+                resolve();
+                }
+            };
+
+            audioStream.on('data', onData);
+
+            audioStream.on('error', async (error) => {
+                if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+                console.error('FFmpeg stream error:', error);
+                getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
+                handleStreamError(serverQueue, false);
+                reject(error);
             });
 
-            // 再生開始処理
+            const releaseOnce = () => { safeRelease(); };
+                audioStream.once('close', releaseOnce);
+                audioStream.once('end',   releaseOnce);
+            });
+
             setupCommandStatusListeners(serverQueue, guildId);
             serverQueue.audioPlayer.play(serverQueue.resource);
             serverQueue.connection.subscribe(serverQueue.audioPlayer);
+        }
+
+        if (msg.type === 'done') {
+            safeRelease();
+            return;
         }
     });
 }

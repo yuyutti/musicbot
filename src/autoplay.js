@@ -1,8 +1,10 @@
 const playdl = require('play-dl');
-const ytdl = require('@distube/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
+const ytdl = require('@nuclearplayer/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 const { queue: musicQueue } = require('./musicQueue');
 const { getLoggerChannel, getErrorChannel } = require('./log');
 const proxyManager = require('./proxymanager');
+
+const fs = require('fs');
 
 async function autoplay (guildId) {
     const loggerChannel = getLoggerChannel();
@@ -14,16 +16,13 @@ async function autoplay (guildId) {
         if (proxy) {
             agent = ytdl.createProxyAgent( { uri: proxy } );
         }
-        // const videoInfo = await playdl.video_basic_info(serverQueue.songs[0].url);
         const videoInfo = await ytdl.getBasicInfo(serverQueue.songs[0].url, { agent });
-        const relatedVideos = videoInfo.related_videos;
-        const randomIndex = Math.floor(Math.random() * relatedVideos.length);
-        // const NextPlayingVideoInfo = await playdl.video_basic_info(relatedVideos[randomIndex]);
-        const NextPlayingVideoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${relatedVideos[randomIndex].id}`, { agent });
+        const videoId = videoInfo.response.contents.twoColumnWatchNextResults.autoplay.autoplay.sets[0].autoplayVideo.watchEndpoint.videoId;
+        const NextPlayingVideoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`, { agent });
         serverQueue.songs.push(
             {
                 title: NextPlayingVideoInfo.videoDetails.title,
-                url: `https://www.youtube.com/watch?v=${relatedVideos[randomIndex].id}`,
+                url: `https://www.youtube.com/watch?v=${videoId}`,
                 duration: NextPlayingVideoInfo.videoDetails.lengthSeconds,
                 requestBy: '1113282204064297010'
             }

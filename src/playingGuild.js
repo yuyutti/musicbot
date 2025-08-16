@@ -115,7 +115,6 @@ async function cleanupQueue(guildId) {
     if (serverQueue.connection && serverQueue.connection.state.status !== "destroyed") serverQueue.connection.destroy();
 
     if (serverQueue.time.interval) clearInterval(serverQueue.time.interval);
-    if (serverQueue.ffmpegProcess) serverQueue.ffmpegProcess.kill('SIGKILL');
     queue.delete(guildId);
     updateActivity();
     updatePlayingGuild();

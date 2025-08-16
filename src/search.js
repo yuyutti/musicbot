@@ -3,7 +3,7 @@ const playdl = require("play-dl");
 
 const language = require("../lang/commands/play");
 const { getData, getPreview, getTracks, getDetails } = require('spotify-url-info')(fetch)
-const ytdl = require("@distube/ytdl-core");
+const ytdl = require("@nuclearplayer/ytdl-core");
 const proxyManager = require("./proxymanager");
 
 class WorkerPool {
@@ -189,20 +189,35 @@ else {
             }));
         }
 
-        async function addSearchResult(songString, userId, lang) {
-            const searchResult = await playdl.search(songString, { source: { youtube: "video" }, limit: 1, language: lang });
-            if (searchResult.length > 0) {
-                const video = searchResult[0];
-                return [{
-                    title: video.title,
-                    url: video.url,
-                    duration: video.durationInSec,
-                    requestBy: userId
-                }];
-            }
-            else {
-                parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
-                return 0;
+        async function addSearchResult(songString, userId, lang, retries = 3) {
+            for (let attempt = 1; attempt <= retries; attempt++) {
+                try {
+                    const searchResult = await playdl.search(songString, {
+                        source: { youtube: "video" },
+                        limit: 1,
+                        language: lang
+                    });
+
+                    if (searchResult.length > 0) {
+                        const video = searchResult[0];
+                        return [{
+                            title: video.title,
+                            url: video.url,
+                            duration: video.durationInSec,
+                            requestBy: userId
+                        }];
+                    } else {
+                        parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
+                        return 0;
+                    }
+                } catch (err) {
+                    console.error(`Search attempt ${attempt} failed:`, err.message);
+                    if (attempt === retries) {
+                        parentPort.postMessage({ content: language.notArray[lang], ephemeral: true });
+                        return 0;
+                    }
+                    await new Promise(r => setTimeout(r, 500));
+                }
             }
         }
 
