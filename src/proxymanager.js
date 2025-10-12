@@ -1,8 +1,6 @@
 const fs = require('fs');
 const path = require('path');
 
-const addProxy = "http://27.0.158.202:5432";
-
 class ProxyManager {
     constructor() {
         this.proxyFilePath = path.join(__dirname, '..', '.data', 'proxy.json');
@@ -93,11 +91,6 @@ class ProxyManager {
     getProxy() {
         if (process.env.ENABLE_PROXY === "false") {
             return "";
-        }
-
-        if (addProxy && !this.isProxyBlocked(addProxy)) {
-            process.dashboardData.proxy.currentList = [addProxy, ...this.proxyList];
-            return addProxy;
         }
 
         process.dashboardData.proxy.currentList = this.proxyList;
