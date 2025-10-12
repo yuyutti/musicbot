@@ -1,4 +1,4 @@
-const ytdl = require('@nuclearplayer/ytdl-core');
+const ytdl = require('@distube/ytdl-core');
 const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
@@ -33,8 +33,8 @@ process.on('message', async (msg) => {
             attemptCount++;
             process.send({ type: "logger", message: `Playing song (Attempt ${attemptCount}): ${song.title}` });
 
-            const defaultItagList = [251, 18, 250, 249, 93, 94, 92, 91, 140];
-            // const defaultItagList = [18];
+            // const defaultItagList = [251, 18, 250, 249, 93, 94, 92, 91, 140];
+            const defaultItagList = [18];
             if (currentItagList.length === 0) {
                 currentItagList = [...defaultItagList];
             }
@@ -174,7 +174,7 @@ process.on('message', async (msg) => {
                             '-reconnect_streamed', '1',
                             '-reconnect_on_network_error', '1',
                             '-fflags', '+genpts',
-                            '-loglevel', 'error',
+                            '-loglevel', 'info',
                         ])
                         .format('opus');
 
