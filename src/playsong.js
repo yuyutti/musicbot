@@ -1,12 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const { createAudioResource, AudioPlayerStatus, VoiceConnectionStatus, StreamType } = require('@discordjs/voice');
-const { Throttle } = require('stream-throttle');
-const ytdl = require('@nuclearplayer/ytdl-core');
-const fs = require('fs');
 const path = require('path');
-const ffmpeg = require('fluent-ffmpeg');
-const ffmpegPath = require('ffmpeg-static'); 
-ffmpeg.setFfmpegPath(ffmpegPath);
 const { volume, lang, filter: getFilter, LogChannel } = require('../SQL/lockup');
 const language = require('../lang/src/playsong');
 
@@ -30,7 +24,6 @@ class processKill {
     kill() {
         if (!this.child) return;
 
-        // ここでイベント全部外す
         this.child.removeAllListeners('message');
         this.child.removeAllListeners('error');
         this.child.removeAllListeners('exit');
@@ -52,16 +45,21 @@ const pool = new ForkPool({
     idleTtlMs: 60 * 60 * 1000,
 });
 
-let timeatack
+let timeatack;
+
+function clearPlayAttempt(serverQueue) {
+    delete serverQueue._currentlyTryingToPlay;
+}
 
 async function playSong(guildId, song) {
     const serverQueue = musicQueue.get(guildId);
     if (!song || !serverQueue) return await cleanupQueue(guildId);
 
-    timeatack = Date.now()
+    timeatack = Date.now();
+    console.log(`[playSong] start guild=${guildId} title=${song.title}`);
 
     if (serverQueue._currentlyTryingToPlay) {
-        console.log(`[playSong] 多重再生防止: ${song.title}`);
+        console.log(`[playSong] 既に再生試行中: ${song.title}`);
         return;
     }
     serverQueue._currentlyTryingToPlay = true;
@@ -99,19 +97,26 @@ async function playSong(guildId, song) {
     handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId);
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
+    let shouldRetry = false;
+
     try {
-        await getStream(serverQueue, song);
         await sendPlayingMessage(serverQueue);
+        await getStream(serverQueue, song);
         await pauseTimeout(serverQueue, guildId);
-        delete serverQueue._currentlyTryingToPlay;
     } catch (error) {
         if (error.message.includes('Invalid input')) {
-            rePlaySong(guildId, song);
-            return;
+            shouldRetry = true;
+        } else {
+            console.error('playSong global error:', error);
+            errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+            handleStreamError(serverQueue, false);
         }
-        console.error('playSong global error:', error);
-        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でplaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
-        handleStreamError(serverQueue, false);
+    } finally {
+        clearPlayAttempt(serverQueue);
+    }
+
+    if (shouldRetry) {
+        return rePlaySong(guildId, song);
     }
 }
 
@@ -122,7 +127,7 @@ async function rePlaySong(guildId, song) {
     if (!song || !serverQueue) return await cleanupQueue(guildId);
 
     if (serverQueue._currentlyTryingToPlay) {
-        console.log(`[rePlaySong] 多重再生防止: ${song.title}`);
+        console.log(`[rePlaySong] 既に再生試行中: ${song.title}`);
         return;
     }
     serverQueue._currentlyTryingToPlay = true;
@@ -134,6 +139,7 @@ async function rePlaySong(guildId, song) {
         delete serverQueue.playSongRetryCount;
         serverQueue.songs.shift();
         serverQueue.time.current = 0;
+        clearPlayAttempt(serverQueue);
         serverQueue.songs.length > 0 ? playSong(guildId, serverQueue.songs[0]) : cleanupQueue(guildId);
         return;
     }
@@ -166,20 +172,27 @@ async function rePlaySong(guildId, song) {
     handleVoiceConnectionStateChanges(serverQueue, voiceStatusFlags, loggerChannel, guildId);
     handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorChannel, guildId, song);
 
+    let shouldRetry = false;
+
     try {
-        await getStream(serverQueue, song);
         await sendPlayingMessage(serverQueue);
+        await getStream(serverQueue, song);
         await pauseTimeout(serverQueue, guildId);
-        delete serverQueue._currentlyTryingToPlay;
         delete serverQueue.playSongRetryCount;
     } catch (error) {
         if (error.message.includes('Invalid input')) {
-            rePlaySong(guildId, song);
-            return;
+            shouldRetry = true;
+        } else {
+            console.error('rePlaySong global error:', error);
+            errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でrePlaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
+            handleStreamError(serverQueue, false);
         }
-        console.error('playSong global error:', error);
-        errorChannel.send(`**${serverQueue.voiceChannel.guild.name}**でrePlaySongグローバルエラーが発生しました\n\`\`\`${error}\`\`\``);
-        handleStreamError(serverQueue, false);
+    } finally {
+        clearPlayAttempt(serverQueue);
+    }
+
+    if (shouldRetry) {
+        return rePlaySong(guildId, song);
     }
 }
 
@@ -205,15 +218,8 @@ async function getStream(serverQueue, song) {
     });
     if (!child) throw new Error('No worker available');
 
-    child.once('error', (err) => {
-        console.warn('[worker error before send]', err?.message || err);
-        try { getErrorChannel().send(`worker error before send: ${err?.message || err}`); } catch {}
-        safeRelease();
-    });
-
-    serverQueue.ffmpegProcess = new processKill(child);
-
     let released = false;
+    const readyTimer = setTimeout(() => {}, 0);
     const safeRelease = () => {
         if (released) return;
         released = true;
@@ -225,6 +231,13 @@ async function getStream(serverQueue, song) {
         serverQueue.ffmpegProcess = null;
     };
 
+    child.once('error', (err) => {
+        console.warn('[worker error before send]', err?.message || err);
+        try { getErrorChannel().send(`worker error before send: ${err?.message || err}`); } catch {}
+        safeRelease();
+    });
+
+    serverQueue.ffmpegProcess = new processKill(child);
 
     try {
         child.send({
@@ -239,8 +252,8 @@ async function getStream(serverQueue, song) {
     }
 
     let gotReady = false;
-
-    const readyTimer = setTimeout(() => {
+    clearTimeout(readyTimer);
+    const actualReadyTimer = setTimeout(() => {
         if (gotReady) return;
         console.warn('worker ready timeout');
         try { getErrorChannel().send('worker ready timeout'); } catch {}
@@ -248,7 +261,7 @@ async function getStream(serverQueue, song) {
     }, 20_000);
 
     child.on('message', async msg => {
-        if (msg.type === 'ready') { gotReady = true; clearTimeout(readyTimer); }
+        if (msg.type === 'ready') { gotReady = true; clearTimeout(actualReadyTimer); }
 
         if (msg.type === "log") console.log(msg.message);
         if (msg.type === "logger") { console.log(msg.message); getLoggerChannel().send(msg.message); }
@@ -260,7 +273,7 @@ async function getStream(serverQueue, song) {
 
         if (msg.type === "handleStreamError") {
             handleStreamError(serverQueue, msg.isAgeRestricted);
-            safeRelease(); 
+            safeRelease();
             return;
         }
 
@@ -271,7 +284,7 @@ async function getStream(serverQueue, song) {
         }
 
         if (msg.type === "unavailable") {
-            let message = language.unavailable[serverQueue.language](serverQueue.songs[0].title);
+            const message = language.unavailable[serverQueue.language](serverQueue.songs[0].title);
             try { await serverQueue.playingMessage.edit(message); }
             catch { await serverQueue.textChannel.send(message); }
             handleIdleState(serverQueue, serverQueue.guildId);
@@ -280,9 +293,9 @@ async function getStream(serverQueue, song) {
         }
 
         if (msg.type === "ytdlok") {
-            let message = language.playing_preparation_ytOK[serverQueue.language];
+            const message = language.playing_preparation_ytOK[serverQueue.language];
             try { await serverQueue.playingMessage.edit(message); }
-            catch { await serverQueue.textChannel.send(message); }
+            catch { serverQueue.playingMessage = await serverQueue.textChannel.send(message); }
         }
 
         if (msg.type === "downloading") {
@@ -299,62 +312,47 @@ async function getStream(serverQueue, song) {
         }
 
         if (msg.type === "ready") {
-            let message = language.playing_preparation_streamingOK[serverQueue.language];
+            const message = language.playing_preparation_streamingOK[serverQueue.language];
             try { await serverQueue.playingMessage.edit(message); }
-            catch { await serverQueue.textChannel.send(message); }
+            catch { serverQueue.playingMessage = await serverQueue.textChannel.send(message); }
 
-            console.log(`🔊 VC人数: ${vcSize} | 適用するフィルター: ${serverQueue.filter.name}`);
+            console.log(`[ready] VC人数: ${vcSize} | フィルター: ${serverQueue.filter.name}`);
 
             process.dashboardData.proxy.blackList = proxyManager.getBlockedProxyList();
             process.dashboardData.proxy.currentList = proxyManager.getProxyList();
 
             serverQueue.Filter = serverQueue.filter;
 
-            const throttleRate = 320 * 1024 / 8;
-            serverQueue.Throttle = new Throttle({ rate: throttleRate });
-
-            const audioStream = child.stdout.pipe(serverQueue.Throttle);
+            const audioStream = child.stdout;
 
             serverQueue.resource = createAudioResource(audioStream, {
-            inputType: StreamType.WebmOpus,
-            inlineVolume: true
+                inputType: StreamType.OggOpus,
+                inlineVolume: true
             });
             serverQueue.resource.volume.setVolume(volumePurse(serverQueue.volume));
-
-            const FIVE_SECOND_BYTES = 8 * 1024;
-            let accumulatedSizeBytes = 0;
-            let resolved = false;
-
-            await new Promise((resolve, reject) => {
-            const onData = (chunk) => {
-                if (resolved) return;
-                accumulatedSizeBytes += chunk.length;
-                if (accumulatedSizeBytes >= FIVE_SECOND_BYTES) {
-                resolved = true;
-                const elapsedMs = Date.now() - timeatack;
-                console.log(`再生開始までに ${(elapsedMs / 1000).toFixed(1)}秒かかりました`);
-                resolve();
-                }
-            };
-
-            audioStream.on('data', onData);
-
-            audioStream.on('error', async (error) => {
-                if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
-                console.error('FFmpeg stream error:', error);
-                getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
-                handleStreamError(serverQueue, false);
-                reject(error);
-            });
-
-            const releaseOnce = () => { safeRelease(); };
-                audioStream.once('close', releaseOnce);
-                audioStream.once('end',   releaseOnce);
-            });
 
             setupCommandStatusListeners(serverQueue, guildId);
             serverQueue.audioPlayer.play(serverQueue.resource);
             serverQueue.connection.subscribe(serverQueue.audioPlayer);
+
+            audioStream.once('data', () => {
+                const elapsedMs = Date.now() - timeatack;
+                console.log(`[stream] playback started in ${(elapsedMs / 1000).toFixed(1)}s`);
+            });
+
+            audioStream.on('error', async (error) => {
+                if (error.code === 'ERR_STREAM_PREMATURE_CLOSE') return;
+                console.error('[audioStream error]', error);
+                getErrorChannel().send(`**${serverQueue.voiceChannel.guild.name}**でFFmpeg streamエラーが発生しました\n\`\`\`${error}\`\`\``);
+                handleStreamError(serverQueue, false);
+            });
+
+            const releaseOnce = () => {
+                console.log(`[audioStream] close/end`);
+                safeRelease();
+            };
+            audioStream.once('close', releaseOnce);
+            audioStream.once('end', releaseOnce);
         }
 
         if (msg.type === 'done') {
@@ -434,7 +432,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
                 clearInterval(serverQueue.time.interval);
                 clearInterval(serverQueue.trafficLogInterval);
                 serverQueue.time.interval = null;
-                serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+                serverQueue.time.start = serverQueue.time.end = serverQueue.time.current = 0;
                 return;
             }
             if (Math.abs(serverQueue.time.current - serverQueue.time.end) <= 1) {
@@ -442,7 +440,7 @@ async function handleAudioPlayerStateChanges(serverQueue, loggerChannel, errorCh
                 clearInterval(serverQueue.time.interval);
                 clearInterval(serverQueue.trafficLogInterval);
                 serverQueue.time.interval = null;
-                serverQueue.time.start, serverQueue.time.end, serverQueue.time.current = 0;
+                serverQueue.time.start = serverQueue.time.end = serverQueue.time.current = 0;
                 return;
             }
             await new Promise(resolve => setTimeout(resolve, 3000));
@@ -515,15 +513,14 @@ async function sendPlayingMessage(serverQueue) {
         if (isPlayingMessage) {
             try {
                 if (serverQueue.LiveItag.includes(serverQueue.itag)) {
-                    serverQueue.playingMessage.edit({ 
-                        content: language.playing_LIVE_preparation[serverQueue.language], 
+                    serverQueue.playingMessage.edit({
+                        content: language.playing_LIVE_preparation[serverQueue.language],
                         embeds: [],
                         components: []
                     });
-                }
-                else {
-                    serverQueue.playingMessage.edit({ 
-                        content: language.playing_region_preparation[serverQueue.language], 
+                } else {
+                    serverQueue.playingMessage.edit({
+                        content: language.playing_region_preparation[serverQueue.language],
                         embeds: [],
                         components: []
                     });
@@ -531,16 +528,14 @@ async function sendPlayingMessage(serverQueue) {
             } catch (fetchError) {
                 if (serverQueue.LiveItag.includes(serverQueue.itag)) {
                     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
-                }
-                else {
+                } else {
                     serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_region_preparation[serverQueue.language]);
                 }
             }
         } else {
             if (serverQueue.LiveItag.includes(serverQueue.itag)) {
                 serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_LIVE_preparation[serverQueue.language]);
-            }
-            else {
+            } else {
                 serverQueue.playingMessage = await serverQueue.textChannel.send(language.playing_region_preparation[serverQueue.language]);
             }
         }
@@ -583,7 +578,7 @@ function setupCommandStatusListeners(serverQueue, guildId) {
         serverQueue.editTimeout = setTimeout(() => {
             const buttons = createControlButtons();
             serverQueue.playingMessage.edit({ content: "", embeds: [nowPlayingEmbed(guildId)], components: buttons });
-            
+
             serverQueue.editTimeout = null;
         }, 5000);
     }
@@ -592,8 +587,6 @@ function setupCommandStatusListeners(serverQueue, guildId) {
 async function pauseTimeout(serverQueue, guildId) {
     if (serverQueue.pause?.pauseTime && serverQueue.pause?.pauseStart) {
         const loggerChannel = getLoggerChannel();
-        // 一時停止タイマーの復元
-
         const remainingTime = serverQueue.pause.pauseTime - (Date.now() - serverQueue.pause.pauseStart);
 
         if (remainingTime > 0) {
@@ -602,11 +595,11 @@ async function pauseTimeout(serverQueue, guildId) {
             serverQueue.audioPlayer.pause();
             loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態を復元しました 残り${remainingTime / 1000}秒`);
             serverQueue.pauseTimeout = setTimeout(() => {
-                loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態続いたため切断しました`);
+                loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**で一時停止状態が長すぎたため停止しました`);
                 cleanupQueue(guildId);
             }, remainingTime);
         } else {
-            loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**の一時停止タイマーはすでに期限切れのため切断しました`);
+            loggerChannel.send(`playing: **${serverQueue.voiceChannel.guild.name}**の一時停止タイマーは期限切れでした`);
             cleanupQueue(guildId);
         }
     }

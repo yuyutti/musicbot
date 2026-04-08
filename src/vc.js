@@ -35,6 +35,7 @@ function joinVC(guildId) {
     const connection = getVoiceConnection(guildId);
     if (connection) {
         console.log("BOTは既にVCに接続しています");
+        serverQueue.connection = connection;
     }
     else {
         console.log("BOTはVCに接続していません。新しく接続します");
@@ -42,6 +43,7 @@ function joinVC(guildId) {
             channelId: serverQueue.voiceChannel.id,
             guildId,
             adapterCreator: serverQueue.voiceChannel.guild.voiceAdapterCreator,
+            selfDeaf: true,
         });
     }
 }
