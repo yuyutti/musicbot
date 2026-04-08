@@ -4,7 +4,12 @@ const ffmpeg = require('fluent-ffmpeg');
 const ffmpegPath = require('ffmpeg-static');
 ffmpeg.setFfmpegPath(ffmpegPath);
 
-const ytdlpPath = path.join(__dirname, "..", "yt-dlp", "yt-dlp.exe");
+const ytdlpPath = path.join(
+    __dirname,
+    "..",
+    "yt-dlp",
+    process.platform === "win32" ? "yt-dlp.exe" : "yt-dlp_linux"
+);
 
 let ffmpegProcess = null;
 
