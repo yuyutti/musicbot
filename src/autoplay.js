@@ -1,10 +1,7 @@
-const playdl = require('play-dl');
-const ytdl = require('@nuclearplayer/ytdl-core'); // distubejs/ytdl-core#pull/163/head を使用
 const { queue: musicQueue } = require('./musicQueue');
 const { getLoggerChannel, getErrorChannel } = require('./log');
 const proxyManager = require('./proxymanager');
-
-const fs = require('fs');
+const { ytdlpJson, getYouTubeVideoId } = require('./ytdlp');
 
 async function autoplay (guildId) {
     const loggerChannel = getLoggerChannel();
@@ -12,27 +9,29 @@ async function autoplay (guildId) {
     try {
         const serverQueue = musicQueue.get(guildId);
         const proxy = proxyManager.getProxy();
-        let agent = null;
-        if (proxy) {
-            agent = ytdl.createProxyAgent( { uri: proxy } );
-        }
-        const videoInfo = await ytdl.getBasicInfo(serverQueue.songs[0].url, { agent });
-        const videoId = videoInfo.response.contents.twoColumnWatchNextResults.autoplay.autoplay.sets[0].autoplayVideo.watchEndpoint.videoId;
-        const NextPlayingVideoInfo = await ytdl.getBasicInfo(`https://www.youtube.com/watch?v=${videoId}`, { agent });
-        serverQueue.songs.push(
-            {
-                title: NextPlayingVideoInfo.videoDetails.title,
-                url: `https://www.youtube.com/watch?v=${videoId}`,
-                duration: NextPlayingVideoInfo.videoDetails.lengthSeconds,
-                requestBy: '1113282204064297010'
-            }
-        );
+
+        const currentUrl = serverQueue.songs[0].url;
+        const videoId = getYouTubeVideoId(currentUrl);
+        if (!videoId) throw new Error(`Could not extract videoId from: ${currentUrl}`);
+
+        // YouTube Radio Mix (RD) から2曲目を取得 → 自動再生の次曲
+        const radioUrl = `https://www.youtube.com/watch?v=${videoId}&list=RD${videoId}`;
+        const nextVideo = await ytdlpJson(radioUrl, ['--playlist-start', '2', '--playlist-end', '2'], proxy);
+
+        const video = Array.isArray(nextVideo) ? nextVideo[0] : nextVideo;
+
+        serverQueue.songs.push({
+            title: video.title,
+            url: video.webpage_url || `https://www.youtube.com/watch?v=${video.id}`,
+            duration: video.duration,
+            requestBy: '1113282204064297010'
+        });
         loggerChannel.send(`autoplay: **${serverQueue.guildName}**に**${serverQueue.songs.slice(-1)[0].title}**を追加しました`);
-        return true
+        return true;
     } catch (error) {
-        console.log(error)
+        console.log(error);
         errorChannel.send(`autoplay: \n\`\`\`${error}\`\`\``);
-        return false
+        return false;
     }
 }
 

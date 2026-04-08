@@ -1,10 +1,10 @@
-const { Worker, isMainThread, parentPort, workerData } = require("worker_threads");
-const playdl = require("play-dl");
+const { Worker, isMainThread, parentPort } = require("worker_threads");
 
 const language = require("../lang/commands/play");
-const { getData, getPreview, getTracks, getDetails } = require('spotify-url-info')(fetch)
-const ytdl = require("@nuclearplayer/ytdl-core");
+const { getPreview, getDetails } = require("spotify-url-info")(fetch);
 const proxyManager = require("./proxymanager");
+const { safeReply } = require("./reply");
+const { ytdlpJson, ytdlpJsonStream } = require("./ytdlp");
 
 class WorkerPool {
     constructor(poolSize, workerPath) {
@@ -38,17 +38,16 @@ class WorkerPool {
         };
     }
 
-    // ワーカー取得
     getWorker() {
         return new Promise((resolve, reject) => {
             this.syncDashboardData();
 
             if (this.pool.length > 0) {
                 const worker = this.pool.pop();
-                resolve(worker);
+                return resolve(worker);
             }
 
-            else if (this.pool.length < this.poolSize) {
+            if (this.pool.length < this.poolSize) {
                 const workerId = this.getNewWorkerId();
                 if (workerId !== null) {
                     const worker = new Worker(this.workerPath);
@@ -57,21 +56,18 @@ class WorkerPool {
                 }
             }
 
-            else {
-                this.taskQueue.push({ resolve, reject });
-            }
+            this.taskQueue.push({ resolve, reject });
         });
     }
 
-    // タスク実行
-    runTask(data, retries = 3) {
+    runStreamingTask(data, interactionOrMessage, onItem) {
         return new Promise((resolve, reject) => {
             this.getWorker().then((worker) => {
                 worker.postMessage(data);
-                worker.removeAllListeners('message');
-                worker.removeAllListeners('error');
-    
-                worker.on('message', (msg) => {
+                worker.removeAllListeners("message");
+                worker.removeAllListeners("error");
+
+                worker.on("message", (msg) => {
                     if (msg.type === "getProxy") {
                         const proxy = proxyManager.getProxy();
                         worker.postMessage({ type: "proxy", proxy });
@@ -82,58 +78,107 @@ class WorkerPool {
                         return;
                     }
                     if (msg.content) {
-                        return data.interactionOrMessage.reply({ content: msg.content, ephemeral: msg.ephemeral });
+                        safeReply(interactionOrMessage, msg.content, msg.ephemeral);
+                        return;
+                    }
+                    if (msg.type === "playlist_item") {
+                        onItem?.(msg.song, msg.isFirst);
+                        return;
+                    }
+                    if (msg.type === "playlist_items") {
+                        for (const song of msg.songs || []) {
+                            onItem?.(song, false);
+                        }
+                        return;
+                    }
+                    if (msg.type === "playlist_done") {
+                        this.pool.push(worker);
+                        resolve({ addedCount: msg.addedCount, name: msg.name });
+                        return;
                     }
                     resolve(msg);
                     this.pool.push(worker);
                 });
-    
-                worker.on('error', async (error) => {
+
+                worker.on("error", async (error) => {
                     console.error(`Worker ${worker.workerId} でエラー発生:`, error);
-    
-                    if (error.message.includes("401") && retries > 0) {
-                        console.log(`再試行します... 残り回数: ${retries}`);
-                        this.aliveWorker.delete(worker.workerId);
-                        worker.terminate();
-                        
-                        await new Promise(res => setTimeout(res, 1000)); 
-                        return resolve(this.runTask(data, retries - 1));
-                    }
-    
                     reject(error);
                     this.aliveWorker.delete(worker.workerId);
                     worker.terminate();
                 });
-    
             }).catch(reject);
         });
-    }    
+    }
+
+    runTask(data, interactionOrMessage, retries = 3) {
+        return new Promise((resolve, reject) => {
+            this.getWorker().then((worker) => {
+                worker.postMessage(data);
+                worker.removeAllListeners("message");
+                worker.removeAllListeners("error");
+
+                worker.on("message", (msg) => {
+                    if (msg.type === "getProxy") {
+                        const proxy = proxyManager.getProxy();
+                        worker.postMessage({ type: "proxy", proxy });
+                        return;
+                    }
+                    if (msg.type === "backListProxy") {
+                        proxyManager.blacklistProxy(msg.proxy);
+                        return;
+                    }
+                    if (msg.content) {
+                        return safeReply(interactionOrMessage, msg.content, msg.ephemeral);
+                    }
+                    resolve(msg);
+                    this.pool.push(worker);
+                });
+
+                worker.on("error", async (error) => {
+                    console.error(`Worker ${worker.workerId} でエラー発生:`, error);
+
+                    if (error.message.includes("401") && retries > 0) {
+                        this.aliveWorker.delete(worker.workerId);
+                        worker.terminate();
+                        await new Promise(res => setTimeout(res, 1000));
+                        return resolve(this.runTask(data, interactionOrMessage, retries - 1));
+                    }
+
+                    reject(error);
+                    this.aliveWorker.delete(worker.workerId);
+                    worker.terminate();
+                });
+            }).catch(reject);
+        });
+    }
 }
 
-// メインスレッド側の処理
 if (isMainThread) {
     const workerPool = new WorkerPool(4, __filename);
 
-    async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage) {
-        const data = { stringType, songString, userId, lang, interactionOrMessage };
-        return workerPool.runTask(data);
+    async function handleSongTypeWorker(stringType, songString, userId, lang, interactionOrMessage, options = {}) {
+        const data = { stringType, songString, userId, lang, ...options };
+        return workerPool.runTask(data, interactionOrMessage);
     }
 
-    module.exports = { handleSongTypeWorker };
-}
-else {
-    (async () => {
-        async function handleSongType(stringType, songString, userId, lang, agent) {
+    async function handlePlaylistWorker(songString, userId, lang, interactionOrMessage, onItem, options = {}) {
+        const data = { stringType: "yt_playlist", songString, userId, lang, ...options };
+        return workerPool.runStreamingTask(data, interactionOrMessage, onItem);
+    }
 
+    module.exports = { handleSongTypeWorker, handlePlaylistWorker };
+} else {
+    (async () => {
+        async function handleSongType(stringType, songString, userId, lang, options = {}) {
             let songs = [];
             let name = "";
 
             switch (stringType) {
                 case "yt_video":
-                    ({ songs, name } = await addYouTubeVideo(songString, userId, lang, agent));
+                    ({ songs, name } = await addYouTubeVideo(songString, userId, lang, proxy));
                     break;
                 case "yt_playlist":
-                    songs= await addYouTubePlaylist(songString, userId, lang);
+                    ({ songs, name } = await addYouTubePlaylist(songString, userId, options.playlistMode));
                     break;
                 case "search":
                     songs = await addSearchResult(songString, userId, lang);
@@ -142,11 +187,7 @@ else {
                     songs = await addSpotifyTrack(songString, userId, lang);
                     break;
                 case "sp_album":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
-                    break;
                 case "sp_playlist":
-                    ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
-                    break;
                 case "sp_artist":
                     ({ songs, name } = await addSpotifyTrackListToQueue(songString, userId, lang));
                     break;
@@ -157,21 +198,25 @@ else {
                     parentPort.postMessage({ content: language.notSupportService[lang], ephemeral: true });
                     break;
             }
+
             return { addedCount: songs.length, songs, name };
         }
 
-        async function addYouTubeVideo(songString, userId, lang, agent) {
+        async function addYouTubeVideo(songString, userId, lang, proxy) {
             try {
-                const videoInfo = await ytdl.getBasicInfo(songString, { agent });
-                return { songs: [{
-                    title: videoInfo.videoDetails.title,
-                    url: songString,
-                    duration: videoInfo.videoDetails.lengthSeconds,
-                    requestBy: userId
-                }], name: videoInfo.videoDetails.title };
-            } catch(error) {
+                const videoInfo = await ytdlpJson(songString, [], proxy);
+                return {
+                    songs: [{
+                        title: videoInfo.title,
+                        url: songString,
+                        duration: videoInfo.duration,
+                        requestBy: userId
+                    }],
+                    name: videoInfo.title
+                };
+            } catch (error) {
                 console.error("YouTube動画の取得に失敗:", error);
-                if(error.message.includes("Sign in to confirm you’re not a bot")) {
+                if (error.message.includes("Sign in to confirm you") && error.message.includes("not a bot")) {
                     return { songs: [], name: "singInToConfirmYouReNotABot" };
                 }
                 parentPort.postMessage({ content: language.notFoundVoiceChannel[lang], ephemeral: true });
@@ -179,37 +224,96 @@ else {
             }
         }
 
-        async function addYouTubePlaylist(songString, userId, lang) {
-            const playlistInfo = await playdl.playlist_info(songString, { incomplete: true, language: lang });
-            return playlistInfo.videos.map(video => ({
+        async function fetchFirstPlaylistSong(songString, userId) {
+            let playlistName = "";
+
+            const firstItemResult = await ytdlpJson(
+                songString,
+                ["--flat-playlist", "--playlist-start", "1", "--playlist-end", "1"],
+                proxy
+            );
+
+            const firstItem = Array.isArray(firstItemResult) ? firstItemResult[0] : firstItemResult;
+            if (!firstItem) return { songs: [], name: playlistName };
+
+            playlistName = firstItem.playlist_title || firstItem.playlist || "";
+            const firstUrl = firstItem.url || `https://www.youtube.com/watch?v=${firstItem.id}`;
+
+            try {
+                const info = await ytdlpJson(firstUrl, [], proxy);
+                return {
+                    songs: [{
+                        title: info.title || firstItem.title,
+                        url: firstUrl,
+                        duration: info.duration || firstItem.duration || 0,
+                        requestBy: userId
+                    }],
+                    name: playlistName
+                };
+            } catch {
+                return {
+                    songs: [{
+                        title: firstItem.title,
+                        url: firstUrl,
+                        duration: firstItem.duration || 0,
+                        requestBy: userId
+                    }],
+                    name: playlistName
+                };
+            }
+        }
+
+        async function fetchPlaylistSongs(songString, userId, { skipFirst = false } = {}) {
+            let playlistName = "";
+            const mappedSongs = [];
+
+            const extraArgs = ["--flat-playlist"];
+            if (skipFirst) {
+                extraArgs.push("--playlist-start", "2");
+            }
+
+            await ytdlpJsonStream(songString, extraArgs, proxy, (video) => {
+                if (!playlistName && video.playlist_title) playlistName = video.playlist_title;
+                mappedSongs.push({
+                    title: video.title,
+                    url: video.url || `https://www.youtube.com/watch?v=${video.id}`,
+                    duration: video.duration || 0,
+                    requestBy: userId
+                });
+            });
+
+            return { songs: mappedSongs, name: playlistName };
+        }
+
+        async function addYouTubePlaylist(songString, userId, playlistMode = "bulk") {
+            if (playlistMode === "first_only") {
+                return fetchFirstPlaylistSong(songString, userId);
+            }
+
+            return fetchPlaylistSongs(songString, userId, {
+                skipFirst: playlistMode === "skip_first"
+            });
+        }
+
+        async function ytdlpSearch(query, proxy) {
+            const results = await ytdlpJson(`ytsearch1:${query}`, [], proxy);
+            const list = Array.isArray(results) ? results : [results];
+            if (list.length === 0) return null;
+            const video = list[0];
+            return {
                 title: video.title,
-                url: video.url,
-                duration: video.durationInSec,
-                requestBy: userId
-            }));
+                url: video.webpage_url || `https://www.youtube.com/watch?v=${video.id}`,
+                duration: video.duration || 0,
+            };
         }
 
         async function addSearchResult(songString, userId, lang, retries = 3) {
             for (let attempt = 1; attempt <= retries; attempt++) {
                 try {
-                    const searchResult = await playdl.search(songString, {
-                        source: { youtube: "video" },
-                        limit: 1,
-                        language: lang
-                    });
-
-                    if (searchResult.length > 0) {
-                        const video = searchResult[0];
-                        return [{
-                            title: video.title,
-                            url: video.url,
-                            duration: video.durationInSec,
-                            requestBy: userId
-                        }];
-                    } else {
-                        parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
-                        return 0;
-                    }
+                    const video = await ytdlpSearch(songString, proxy);
+                    if (video) return [{ ...video, requestBy: userId }];
+                    parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
+                    return 0;
                 } catch (err) {
                     console.error(`Search attempt ${attempt} failed:`, err.message);
                     if (attempt === retries) {
@@ -224,28 +328,10 @@ else {
         async function addSpotifyTrack(songString, userId, lang) {
             try {
                 const spTrack = await getPreview(songString);
-                const trackName = spTrack.title;
-                const artistName = spTrack.artist;
-        
-                const ytQuery = `${trackName} ${artistName}`;
-                const sp_trackSearchResult = await playdl.search(ytQuery, {
-                    source: { youtube: "video" },
-                    limit: 1,
-                    language: lang
-                });
-        
-                if (sp_trackSearchResult.length > 0) {
-                    const video = sp_trackSearchResult[0];
-                    return [{
-                        title: video.title,
-                        url: video.url,
-                        duration: video.durationInSec,
-                        requestBy: userId
-                    }];
-                } else {
-                    parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
-                    return 0;
-                }
+                const video = await ytdlpSearch(`${spTrack.title} ${spTrack.artist}`, proxy);
+                if (video) return [{ ...video, requestBy: userId }];
+                parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
+                return 0;
             } catch (err) {
                 console.error("Failed to load Spotify track:", err);
                 parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
@@ -258,51 +344,30 @@ else {
                 const result = await getDetails(songString);
                 const name = result.preview.title;
                 const tracks = result.tracks;
-        
+
                 if (!tracks || tracks.length === 0) return { name, songs: [] };
-        
+
                 const songs = await Promise.all(tracks.map(async track => {
                     const trackName = track.name;
                     const artistName = track.artists?.[0]?.name || "";
-                    let ytResult = await playdl.search(`${trackName} ${artistName}`, {
-                        source: { youtube: "video" },
-                        limit: 1,
-                        language: lang
-                    });
-        
-                    if (ytResult.length === 0) {
-                        console.log(`No results for ${trackName}, retrying...`);
-                        ytResult = await playdl.search(trackName, {
-                            source: { youtube: "video" },
-                            limit: 1,
-                            language: lang
-                        });
+                    let video = await ytdlpSearch(`${trackName} ${artistName}`, proxy);
+                    if (!video) {
+                        video = await ytdlpSearch(trackName, proxy);
                     }
-        
-                    if (ytResult.length > 0) {
-                        const video = ytResult[0];
-                        return {
-                            title: video.title,
-                            url: video.url,
-                            duration: video.durationInSec,
-                            requestBy: userId
-                        };
-                    }
-        
+                    if (video) return { ...video, requestBy: userId };
                     return null;
                 }));
-        
-                return { name, songs: songs.filter(s => s !== null) };
+
+                return { name, songs: songs.filter(Boolean) };
             } catch (err) {
                 console.error("Failed to load Spotify track list:", err);
                 parentPort.postMessage({ content: language.notHit[lang], ephemeral: true });
-                return { name: 'Unknown', songs: [] };
+                return { name: "Unknown", songs: [] };
             }
         }
 
         let proxy = null;
         let taskData = null;
-        let agent = null;
         let retries = 0;
 
         parentPort.on("message", async (data) => {
@@ -311,34 +376,28 @@ else {
                 if (proxy !== null && proxy !== undefined) {
                     proceedTask();
                 } else {
-                    console.log(`No proxy received. Retrying...`);
                     await new Promise(resolve => setTimeout(resolve, 500));
                     retries++;
-                    console.log(`Retrying... Attempt: ${retries}`);
                     if (retries < 5) {
                         requestProxy();
                     }
                 }
                 return;
             }
-        
-            // 最初のリクエストデータを保持
+
             taskData = data;
-            requestProxy(); // プロキシ取りに行く
+            requestProxy();
         });
-        
+
         function requestProxy() {
             parentPort.postMessage({ type: "getProxy" });
         }
-        
+
         async function proceedTask() {
-            const { stringType, songString, userId, lang, interactionOrMessage } = taskData;
-        
+            const { stringType, songString, userId, lang, ...options } = taskData;
+
             try {
-                if (proxy) {
-                    agent = ytdl.createProxyAgent({ uri: proxy });
-                }
-                result = await handleSongType(stringType, songString, userId, lang, agent, interactionOrMessage);
+                const result = await handleSongType(stringType, songString, userId, lang, options);
 
                 if (result.name === "singInToConfirmYouReNotABot") {
                     if (retries === 0) {
@@ -354,9 +413,8 @@ else {
                     }
                     return;
                 }
-        
+
                 parentPort.postMessage(result);
-        
             } catch (error) {
                 console.error("Worker processing error:", error);
                 parentPort.postMessage({ error: error.message });

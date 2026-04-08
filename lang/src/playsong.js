@@ -47,8 +47,8 @@ const lang = {
         en: 'Preparing to play...'
     },
     playing_region_preparation: {
-        ja: '再生する準備をしています...\n\n:warning:通信経路により再生までに7秒～20秒、別の通信経路を検索している場合最大1分程度時間がかかる可能性があります。\nそのままお待ちください。:warning:',
-        en: 'Preparing to play... \n\nDue to the communication route, it may take 7 to 20 seconds to play, and if you are searching for another communication route, it may take up to 1 minute. \nPlease wait as it is.'
+        ja: '再生する準備をしています...',
+        en: 'Preparing to play... '
     },
     playing_LIVE_preparation: {
         ja: '再生する準備をしています... \nライブ配信のため、再生までに時間がかかる場合があります。',
@@ -59,12 +59,12 @@ const lang = {
         en: 'Preparing to play... \n :warning: Due to changes in the platform specifications, the library may not be able to support it, so it may take time to play. \n If an error occurs, please wait and check again.'
     },
     playing_preparation_ytOK: {
-        ja: '情報の取得が完了しました。再生データを読み込んでいます...\n\n:warning:通信経路により再生までに7秒～20秒、別の通信経路を検索している場合最大1分程度時間がかかる可能性があります。\nそのままお待ちください。:warning:',
-        en: 'Information retrieval is complete. Loading playback data...\n\nDue to the communication route, it may take 7 to 20 seconds to play, and if you are searching for another communication route, it may take up to 1 minute. \nPlease wait as it is.'
+        ja: '情報の取得が完了しました。再生データを読み込んでいます...',
+        en: 'Information retrieval is complete. Loading playback data...'
     },
     playing_preparation_streamingOK: {
-        ja: 'データの取得が完了しました。まもなく再生が開始されます。\n\n:warning:通信経路により再生までに7秒～20秒、別の通信経路を検索している場合最大1分程度時間がかかる可能性があります。\nそのままお待ちください。:warning:',
-        en: 'Data retrieval is complete. Playback will begin shortly.\n\nDue to the communication route, it may take 7 to 20 seconds to play, and if you are searching for another communication route, it may take up to 1 minute. \nPlease wait as it is.'
+        ja: 'データの取得が完了しました。まもなく再生が開始されます。',
+        en: 'Data retrieval is complete. Playback will begin shortly.'
     },
     autoPlayError: {
         ja: '自動再生の準備中にエラーが発生しました',
