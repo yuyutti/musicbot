@@ -219,6 +219,7 @@ async function getStream(serverQueue, song) {
     if (!child) throw new Error('No worker available');
 
     let released = false;
+    let workerDone = false;
     const readyTimer = setTimeout(() => {}, 0);
     const safeRelease = () => {
         if (released) return;
@@ -348,7 +349,7 @@ async function getStream(serverQueue, song) {
             });
 
             const releaseOnce = () => {
-                console.log(`[audioStream] close/end`);
+                console.log(`[audioStream] close/end workerDone=${workerDone}`);
                 safeRelease();
             };
             audioStream.once('close', releaseOnce);
@@ -356,7 +357,8 @@ async function getStream(serverQueue, song) {
         }
 
         if (msg.type === 'done') {
-            safeRelease();
+            workerDone = true;
+            console.log('[worker] done received, waiting for audioStream drain');
             return;
         }
     });
